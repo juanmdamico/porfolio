@@ -10,7 +10,7 @@ Todas funcionan 100% en el navegador, sin servidor:
 
 | Herramienta | Ruta | Código |
 | --- | --- | --- |
-| Conversor de archivos | `/conversor` | `src/pages/conversor.astro`, `src/scripts/conversor/` |
+| Conversor de archivos (imágenes, Word ⇄ PDF, CSV ⇄ JSON) | `/conversor` | `src/pages/conversor.astro`, `src/scripts/conversor/` |
 | Dashboard del clima | `/clima` | `src/pages/clima.astro`, `src/scripts/clima/` |
 | Generador de paletas | `/paletas` | `src/pages/paletas.astro`, `src/scripts/paletas/` |
 | Editor de Markdown | `/markdown` | `src/pages/markdown.astro` |
