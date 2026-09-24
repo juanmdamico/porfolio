@@ -1,0 +1,262 @@
+---
+import Herramienta from '../layouts/Herramienta.astro';
+import ZonaArchivos from '../components/ZonaArchivos.astro';
+---
+
+<Herramienta
+  titulo="Generador de paletas"
+  descripcion="Subí una foto y obtené su paleta de colores, lista para copiar como CSS, SCSS, Tailwind o JSON."
+>
+  <div class="panel">
+    <div class="entrada">
+      <ZonaArchivos id="zona" accept="image/*" texto="Arrastrá una imagen, hacé clic o pegala con Ctrl+V" ayuda="La imagen no sale de tu navegador" />
+      <button class="btn" id="ejemplo" type="button">Probar con una imagen de ejemplo</button>
+    </div>
+
+    <div id="resultado" class="resultado" hidden>
+      <div class="vista">
+        <canvas id="vista" aria-label="Imagen analizada"></canvas>
+        <div class="barra" id="barra" aria-hidden="true"></div>
+      </div>
+
+      <div class="lateral">
+        <div class="opciones">
+          <label>
+            Cantidad de colores <output id="cantidad-valor">6</output>
+            <input type="range" id="cantidad" min="3" max="10" value="6" />
+          </label>
+        </div>
+        <ul class="muestras" id="muestras"></ul>
+      </div>
+    </div>
+
+    <div id="exportar" class="tarjeta exportar" hidden>
+      <div class="exportar-cabecera">
+        <h2>Exportar</h2>
+        <div class="formatos" role="radiogroup" aria-label="Formato">
+          <button type="button" data-formato="css" aria-checked="true" role="radio">CSS</button>
+          <button type="button" data-formato="scss" aria-checked="false" role="radio">SCSS</button>
+          <button type="button" data-formato="tailwind" aria-checked="false" role="radio">Tailwind</button>
+          <button type="button" data-formato="json" aria-checked="false" role="radio">JSON</button>
+        </div>
+      </div>
+      <pre id="codigo"></pre>
+      <div class="acciones">
+        <button class="btn btn-primary" id="copiar" type="button">Copiar código</button>
+        <button class="btn" id="png" type="button">Descargar paleta (.png)</button>
+      </div>
+    </div>
+  </div>
+</Herramienta>
+
+<script>
+  import { $, avisar, copiar, descargar } from '../scripts/comun';
+  import { iniciarZona } from '../scripts/conversor/util';
+  import { muestrear, extraerPaleta, exportar, aHsl, textoSobre, aHex, type Color, type RGB } from '../scripts/paletas/colores';
+
+  type Formato = 'css' | 'scss' | 'tailwind' | 'json';
+  const vista = $<HTMLCanvasElement>('vista');
+  const cantidad = $<HTMLInputElement>('cantidad');
+  let pixeles: RGB[] = [];
+  let colores: Color[] = [];
+  let formato: Formato = 'css';
+
+  async function analizar(fuente: Blob | HTMLCanvasElement) {
+    try {
+      const img = fuente instanceof Blob ? await createImageBitmap(fuente) : fuente;
+      // Vista previa: máximo 900px de ancho.
+      const escala = Math.min(1, 900 / img.width);
+      vista.width = Math.round(img.width * escala);
+      vista.height = Math.round(img.height * escala);
+      vista.getContext('2d')!.drawImage(img, 0, 0, vista.width, vista.height);
+      pixeles = muestrear(img);
+      if ('close' in img) img.close();
+      calcular();
+      $('resultado').hidden = $('exportar').hidden = false;
+      avisar('');
+    } catch {
+      avisar('No se pudo leer la imagen.', true);
+    }
+  }
+
+  function calcular() {
+    colores = extraerPaleta(pixeles, Number(cantidad.value));
+    $('cantidad-valor').textContent = cantidad.value;
+
+    $('barra').innerHTML = colores
+      .map((c) => `<span style="background:${c.hex};flex-grow:${c.peso}"></span>`)
+      .join('');
+
+    const lista = $('muestras');
+    lista.innerHTML = '';
+    colores.forEach((c) => {
+      const [h, s, l] = aHsl(c.rgb);
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <button type="button" class="muestra" style="background:${c.hex};color:${aHex(textoSobre(c.rgb))}" aria-label="Copiar ${c.hex}">
+          <span class="hex">${c.hex.toUpperCase()}</span>
+          <span class="copiar">Copiar</span>
+        </button>
+        <div class="datos">
+          <span>rgb(${c.rgb.join(', ')})</span>
+          <span>hsl(${h}, ${s}%, ${l}%)</span>
+          <span class="peso">${(c.peso * 100).toFixed(1)}% de la imagen</span>
+        </div>`;
+      li.querySelector('button')!.addEventListener('click', () => copiar(c.hex.toUpperCase(), `Copiado ${c.hex.toUpperCase()}`));
+      lista.append(li);
+    });
+    pintarCodigo();
+  }
+
+  function pintarCodigo() {
+    $('codigo').textContent = exportar(colores, formato);
+  }
+
+  cantidad.addEventListener('input', () => pixeles.length && calcular());
+
+  document.querySelectorAll<HTMLButtonElement>('[data-formato]').forEach((b) =>
+    b.addEventListener('click', () => {
+      formato = b.dataset.formato as Formato;
+      document.querySelectorAll('[data-formato]').forEach((x) => x.setAttribute('aria-checked', String(x === b)));
+      pintarCodigo();
+    }),
+  );
+
+  $('copiar').addEventListener('click', () => copiar($('codigo').textContent ?? ''));
+
+  $('png').addEventListener('click', () => {
+    const canvas = document.createElement('canvas');
+    const ancho = 160;
+    canvas.width = ancho * colores.length;
+    canvas.height = 220;
+    const ctx = canvas.getContext('2d')!;
+    colores.forEach((c, i) => {
+      ctx.fillStyle = c.hex;
+      ctx.fillRect(i * ancho, 0, ancho, 220);
+      ctx.fillStyle = aHex(textoSobre(c.rgb));
+      ctx.font = '600 20px system-ui, sans-serif';
+      ctx.fillText(c.hex.toUpperCase(), i * ancho + 16, 200);
+    });
+    canvas.toBlob((b) => b && descargar(b, 'paleta.png'));
+  });
+
+  iniciarZona($('zona'), ([archivo]) => {
+    if (!archivo.type.startsWith('image/')) return avisar('Elegí un archivo de imagen.', true);
+    analizar(archivo);
+  });
+
+  // Pegar una imagen desde el portapapeles.
+  document.addEventListener('paste', (e) => {
+    const item = [...(e.clipboardData?.items ?? [])].find((i) => i.type.startsWith('image/'));
+    const archivo = item?.getAsFile();
+    if (archivo) analizar(archivo);
+  });
+
+  // Imagen de ejemplo dibujada con código: un atardecer sobre montañas.
+  $('ejemplo').addEventListener('click', () => {
+    const c = document.createElement('canvas');
+    c.width = 900;
+    c.height = 560;
+    const ctx = c.getContext('2d')!;
+    const cielo = ctx.createLinearGradient(0, 0, 0, 380);
+    cielo.addColorStop(0, '#2b1055');
+    cielo.addColorStop(0.55, '#d53369');
+    cielo.addColorStop(1, '#fbb040');
+    ctx.fillStyle = cielo;
+    ctx.fillRect(0, 0, 900, 380);
+    ctx.fillStyle = '#ffe29a';
+    ctx.beginPath();
+    ctx.arc(450, 330, 90, 0, Math.PI * 2);
+    ctx.fill();
+    const montana = (color: string, base: number, alto: number, fase: number) => {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.moveTo(0, 560);
+      for (let x = 0; x <= 900; x += 10) {
+        ctx.lineTo(x, base - alto * (0.5 + 0.3 * Math.sin(x / 90 + fase) + 0.2 * Math.sin(x / 37 + fase * 2)));
+      }
+      ctx.lineTo(900, 560);
+      ctx.fill();
+    };
+    montana('#7a2a5c', 400, 170, 1);
+    montana('#4a1942', 440, 130, 3);
+    const agua = ctx.createLinearGradient(0, 440, 0, 560);
+    agua.addColorStop(0, '#1d2b64');
+    agua.addColorStop(1, '#0b1026');
+    ctx.fillStyle = agua;
+    ctx.fillRect(0, 440, 900, 120);
+    analizar(c);
+  });
+</script>
+
+<style>
+  .entrada { display: flex; flex-direction: column; gap: 12px; }
+  .entrada .btn { align-self: center; }
+
+  .resultado { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; align-items: start; }
+  .resultado[hidden] { display: none; }
+  @media (max-width: 760px) {
+    .resultado { grid-template-columns: 1fr; }
+  }
+
+  .vista { position: sticky; top: 80px; }
+  .vista canvas { display: block; width: 100%; height: auto; border-radius: var(--radius) var(--radius) 0 0; }
+  .barra { display: flex; height: 18px; border-radius: 0 0 var(--radius) var(--radius); overflow: hidden; gap: 2px; background: var(--surface); }
+  .barra :global(span) { min-width: 4px; }
+
+  .lateral { display: flex; flex-direction: column; gap: 16px; }
+  .muestras { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .muestras :global(li) {
+    display: flex;
+    gap: 14px;
+    align-items: center;
+    padding: 8px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .muestras :global(.muestra) {
+    position: relative;
+    flex-shrink: 0;
+    width: 120px;
+    height: 64px;
+    border: 0;
+    border-radius: 8px;
+    font: inherit;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.08);
+  }
+  .muestras :global(.muestra .copiar) {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    opacity: 0;
+    font-size: 0.85rem;
+    transition: opacity 0.15s;
+  }
+  .muestras :global(.muestra:hover .hex),
+  .muestras :global(.muestra:focus-visible .hex) { opacity: 0; }
+  .muestras :global(.muestra:hover .copiar),
+  .muestras :global(.muestra:focus-visible .copiar) { opacity: 1; }
+  .muestras :global(.datos) { display: flex; flex-direction: column; font-size: 0.85rem; color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace; min-width: 0; }
+  .muestras :global(.peso) { font-family: inherit; color: var(--text); font-weight: 600; }
+
+  .exportar[hidden] { display: none; }
+  .exportar-cabecera { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+  .exportar h2 { margin: 0; font-size: 1.1rem; }
+  .formatos { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: 10px; }
+  .formatos button { border: 0; background: none; color: var(--muted); font: inherit; font-weight: 600; font-size: 0.85rem; padding: 6px 12px; border-radius: 7px; cursor: pointer; }
+  .formatos button[aria-checked='true'] { background: var(--accent); color: var(--on-accent); }
+  pre {
+    margin: 0 0 16px;
+    padding: 16px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    overflow-x: auto;
+    font-size: 0.85rem;
+    max-height: 280px;
+  }
+</style>

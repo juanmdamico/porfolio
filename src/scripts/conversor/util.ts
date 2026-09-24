@@ -1,3 +1,5 @@
+export { descargar } from '../comun';
+
 export function formatearTamano(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -7,15 +9,6 @@ export function formatearTamano(bytes: number): string {
 export function nombreBase(nombre: string): string {
   const i = nombre.lastIndexOf('.');
   return i > 0 ? nombre.slice(0, i) : nombre;
-}
-
-export function descargar(blob: Blob, nombre: string): void {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = nombre;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 /** Conecta una zona de "arrastrar y soltar" con su <input type="file">. */

@@ -1,0 +1,192 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import ProyectoCard from './ProyectoCard.astro';
+import { perfil } from '../data/perfil';
+import { proyectosDe } from '../proyectos';
+import { textos, type Idioma } from '../i18n';
+
+interface Props {
+  idioma: Idioma;
+}
+
+const { idioma } = Astro.props;
+const t = textos[idioma];
+const datos = perfil[idioma];
+const proyectos = await proyectosDe(idioma);
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+
+// El blog está en español; en la versión en inglés no se muestra en la portada.
+const posts =
+  idioma === 'es'
+    ? (await getCollection('blog', (p) => !p.data.borrador))
+        .sort((a, b) => b.data.fecha.valueOf() - a.data.fecha.valueOf())
+        .slice(0, 3)
+    : [];
+const fechaCorta = (d: Date) => d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' });
+---
+
+<Base idioma={idioma}>
+  <section class="hero">
+    <div class="container">
+      <p class="saludo">{t.hola} {perfil.nombre} 👋</p>
+      <h1>{datos.rol}.<br /><span>{datos.frase}</span></h1>
+      <div class="acciones">
+        <a class="btn btn-primary" href="#proyectos">{t.verProyectos}</a>
+        <a class="btn" href="#contacto">{t.contactame}</a>
+        {perfil.tieneCV && <a class="btn" href={`${base}/cv.pdf`} download>{t.descargarCV}</a>}
+      </div>
+    </div>
+  </section>
+
+  <section id="proyectos">
+    <div class="container">
+      <h2 class="section-title">{t.proyectos}</h2>
+      <div class="grid">
+        {proyectos.map((p) => <ProyectoCard proyecto={p} idioma={idioma} />)}
+      </div>
+    </div>
+  </section>
+
+  <section id="sobre-mi">
+    <div class="container sobre">
+      <div>
+        <h2 class="section-title">{t.sobreMi}</h2>
+        {datos.sobreMi.map((parrafo) => <p>{parrafo}</p>)}
+      </div>
+      <div>
+        <h3>{t.habilidades}</h3>
+        <ul class="tags">
+          {perfil.habilidades.map((h) => <li>{h}</li>)}
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  {
+    perfil.experiencia.length > 0 && (
+      <section id="experiencia">
+        <div class="container">
+          <h2 class="section-title">{t.experiencia}</h2>
+          <ol class="linea">
+            {perfil.experiencia.map((e) => (
+              <li>
+                <span class="periodo">{e.periodo[idioma]}</span>
+                <h3>
+                  {e.puesto[idioma]} <span class="lugar">· {e.lugar}</span>
+                </h3>
+                <p>{e.descripcion[idioma]}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
+    )
+  }
+
+  {
+    posts.length > 0 && (
+      <section id="blog">
+        <div class="container">
+          <div class="titulo-con-link">
+            <h2 class="section-title">{t.ultimosPosts}</h2>
+            <a href={`${base}/blog/`}>{t.verTodos}</a>
+          </div>
+          <ul class="posts">
+            {posts.map((p) => (
+              <li>
+                <a href={`${base}/blog/${p.id}/`}>
+                  <time datetime={p.data.fecha.toISOString()}>{fechaCorta(p.data.fecha)}</time>
+                  <strong>{p.data.titulo}</strong>
+                  <span>{p.data.resumen}</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
+    )
+  }
+
+  <section id="contacto">
+    <div class="container contacto">
+      <h2 class="section-title">{t.trabajemos}</h2>
+      <p>{t.escribime}</p>
+      <div class="acciones">
+        <a class="btn btn-primary" href={`mailto:${perfil.email}`}>{perfil.email}</a>
+        <a class="btn" href={perfil.links.github} target="_blank" rel="noopener">GitHub</a>
+        <a class="btn" href={perfil.links.linkedin} target="_blank" rel="noopener">LinkedIn</a>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero { padding: 120px 0 80px; }
+  .saludo { color: var(--accent); font-weight: 600; margin: 0 0 12px; }
+  h1 {
+    font-size: clamp(2.2rem, 6vw, 3.6rem);
+    font-weight: 800;
+    margin: 0 0 32px;
+  }
+  h1 span { color: var(--muted); font-weight: 600; }
+  .acciones { display: flex; flex-wrap: wrap; gap: 12px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+  }
+
+  .sobre {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 48px;
+  }
+  .sobre p { color: var(--muted); }
+  .sobre h3 { margin: 0 0 16px; }
+  @media (max-width: 720px) {
+    .sobre { grid-template-columns: 1fr; gap: 24px; }
+  }
+
+  .linea { list-style: none; margin: 0; padding: 0; border-left: 2px solid var(--border); }
+  .linea li { position: relative; padding: 0 0 32px 28px; }
+  .linea li::before {
+    content: '';
+    position: absolute;
+    left: -7px;
+    top: 6px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px var(--bg);
+  }
+  .linea .periodo { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+  .linea h3 { margin: 4px 0 6px; font-size: 1.15rem; }
+  .linea .lugar { color: var(--muted); font-weight: 500; }
+  .linea p { margin: 0; color: var(--muted); }
+
+  .titulo-con-link { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+  .titulo-con-link a { font-weight: 600; text-decoration: none; white-space: nowrap; }
+  .posts { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .posts a {
+    display: grid;
+    gap: 4px;
+    padding: 18px 20px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
+    transition: border-color 0.2s;
+  }
+  .posts a:hover { border-color: var(--accent); }
+  .posts time { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+  .posts strong { font-size: 1.1rem; }
+  .posts span { color: var(--muted); }
+
+  .contacto { text-align: center; }
+  .contacto p { color: var(--muted); margin: -16px 0 28px; }
+  .contacto .acciones { justify-content: center; }
+</style>

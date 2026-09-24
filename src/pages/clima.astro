@@ -1,0 +1,360 @@
+---
+import Herramienta from '../layouts/Herramienta.astro';
+---
+
+<Herramienta
+  titulo="Dashboard del clima"
+  descripcion="Clima actual, pronóstico de 7 días e historial de los últimos 30 días para cualquier ciudad del mundo."
+  ancha
+>
+  <form class="buscador" id="buscador" autocomplete="off">
+    <div class="campo">
+      <label for="ciudad" class="sr-only">Buscar ciudad</label>
+      <input type="search" id="ciudad" placeholder="Buscá una ciudad… (ej. Córdoba, Madrid, Tokio)" aria-autocomplete="list" aria-controls="sugerencias" />
+      <ul id="sugerencias" class="sugerencias" role="listbox" hidden></ul>
+    </div>
+    <button type="button" class="btn" id="ubicacion">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /><circle cx="12" cy="12" r="8" /></svg>
+      Mi ubicación
+    </button>
+  </form>
+
+  <div id="contenido" class="contenido" hidden>
+    <div class="resumen">
+      <div class="tarjeta ahora">
+        <div>
+          <p class="lugar" id="lugar"></p>
+          <p class="temp"><span id="temp"></span>°</p>
+          <p class="estado" id="estado"></p>
+        </div>
+        <span class="icono-grande" id="icono" aria-hidden="true"></span>
+      </div>
+      <div class="tarjeta dato"><span>Sensación térmica</span><strong id="sensacion"></strong></div>
+      <div class="tarjeta dato"><span>Humedad</span><strong id="humedad"></strong></div>
+      <div class="tarjeta dato"><span>Viento</span><strong id="viento"></strong></div>
+      <div class="tarjeta dato"><span>Lluvia hoy</span><strong id="lluvia-hoy"></strong></div>
+    </div>
+
+    <h2>Próximos 7 días</h2>
+    <ol class="semana" id="semana"></ol>
+
+    <div class="tarjeta">
+      <h2>Temperatura en las próximas 24 horas</h2>
+      <div id="g-horas"></div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Máximas y mínimas: últimos 30 días y pronóstico</h2>
+      <ul class="leyenda">
+        <li><i style="background: var(--serie-calida)"></i>Máxima</li>
+        <li><i style="background: var(--serie-fria)"></i>Mínima</li>
+      </ul>
+      <div id="g-temps"></div>
+    </div>
+
+    <div class="tarjeta">
+      <h2>Lluvia diaria (mm)</h2>
+      <div id="g-lluvia"></div>
+    </div>
+
+    <details class="tabla">
+      <summary>Ver los datos en una tabla</summary>
+      <div class="tabla-scroll">
+        <table>
+          <thead><tr><th>Fecha</th><th>Estado</th><th>Máx.</th><th>Mín.</th><th>Lluvia</th></tr></thead>
+          <tbody id="tabla"></tbody>
+        </table>
+      </div>
+    </details>
+
+    <p class="fuente">Datos: <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a>.</p>
+  </div>
+</Herramienta>
+
+<script>
+  import { $, avisar } from '../scripts/comun';
+  import { buscarLugares, obtenerClima, describir, type Lugar } from '../scripts/clima/api';
+  import { graficoLineas, graficoBarras } from '../scripts/clima/graficos';
+
+  const POR_DEFECTO: Lugar = { nombre: 'Buenos Aires', detalle: 'Argentina', latitud: -34.61, longitud: -58.38 };
+  const input = $<HTMLInputElement>('ciudad');
+  const lista = $('sugerencias');
+  let desmontar: (() => void)[] = [];
+
+  const aFecha = (iso: string) => new Date(`${iso.slice(0, 10)}T12:00`);
+  const fechaCorta = (iso: string) => aFecha(iso).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+  const diaSemana = (iso: string) => aFecha(iso).toLocaleDateString('es-AR', { weekday: 'short' });
+  const redondear = (v: number) => Math.round(v);
+
+  async function cargar(lugar: Lugar) {
+    avisar(`Cargando el clima de ${lugar.nombre}…`);
+    try {
+      const c = await obtenerClima(lugar.latitud, lugar.longitud);
+      try {
+        localStorage.setItem('clima-lugar', JSON.stringify(lugar));
+      } catch {}
+      mostrar(lugar, c);
+      avisar('');
+    } catch (e) {
+      avisar((e as Error).message, true);
+    }
+  }
+
+  function mostrar(lugar: Lugar, c: Awaited<ReturnType<typeof obtenerClima>>) {
+    const { actual, dias, horas, indiceHoy } = c;
+    const estado = describir(actual.codigo, actual.esDeDia);
+    $('lugar').textContent = lugar.detalle ? `${lugar.nombre}, ${lugar.detalle}` : lugar.nombre;
+    $('temp').textContent = String(redondear(actual.temperatura));
+    $('estado').textContent = `${estado.texto} · Máx. ${redondear(dias[indiceHoy].maxima)}° Mín. ${redondear(dias[indiceHoy].minima)}°`;
+    $('icono').textContent = estado.icono;
+    $('sensacion').textContent = `${redondear(actual.sensacion)}°`;
+    $('humedad').textContent = `${actual.humedad}%`;
+    $('viento').textContent = `${redondear(actual.viento)} km/h`;
+    $('lluvia-hoy').textContent = `${dias[indiceHoy].lluvia.toFixed(1)} mm`;
+
+    const proximos = dias.slice(indiceHoy, indiceHoy + 7);
+    $('semana').innerHTML = proximos
+      .map((d, i) => {
+        const e = describir(d.codigo);
+        return `<li class="tarjeta"><span class="dia">${i === 0 ? 'Hoy' : diaSemana(d.fecha)}</span>
+          <span class="icono" title="${e.texto}">${e.icono}</span>
+          <span class="rango"><b>${redondear(d.maxima)}°</b> ${redondear(d.minima)}°</span></li>`;
+      })
+      .join('');
+
+    $('tabla').innerHTML = dias
+      .map(
+        (d, i) => `<tr${i === indiceHoy ? ' class="hoy"' : ''}><td>${fechaCorta(d.fecha)}${i === indiceHoy ? ' (hoy)' : ''}</td>
+          <td>${describir(d.codigo).texto}</td><td>${d.maxima.toFixed(1)}°</td><td>${d.minima.toFixed(1)}°</td><td>${d.lluvia.toFixed(1)} mm</td></tr>`,
+      )
+      .join('');
+
+    $('contenido').hidden = false;
+    desmontar.forEach((f) => f());
+
+    const pronostico = { indice: indiceHoy, texto: 'Pronóstico' };
+    const etiquetasDias = dias.map((d) => fechaCorta(d.fecha));
+    desmontar = [
+      graficoLineas($('g-horas'), [{ nombre: 'Temperatura', color: 'var(--serie-calida)', valores: horas.map((h) => h.temperatura) }], {
+        etiquetas: horas.map((h) => `${fechaCorta(h.hora)}, ${h.hora.slice(11, 16)} h`),
+        etiquetasEje: horas.map((h) => `${Number(h.hora.slice(11, 13))} h`),
+        unidad: '°',
+        decimales: 1,
+      }),
+      graficoLineas(
+        $('g-temps'),
+        [
+          { nombre: 'Máxima', color: 'var(--serie-calida)', valores: dias.map((d) => d.maxima) },
+          { nombre: 'Mínima', color: 'var(--serie-fria)', valores: dias.map((d) => d.minima) },
+        ],
+        { etiquetas: etiquetasDias, etiquetasEje: etiquetasDias, unidad: '°', decimales: 1, desde: pronostico, etiquetaFinal: true, alto: 260 },
+      ),
+      graficoBarras($('g-lluvia'), { nombre: 'Lluvia', color: 'var(--serie-fria)', valores: dias.map((d) => d.lluvia) }, {
+        etiquetas: etiquetasDias,
+        etiquetasEje: etiquetasDias,
+        unidad: ' mm',
+        desde: pronostico,
+      }),
+    ];
+  }
+
+  // ---------- Búsqueda con sugerencias ----------
+  let temporizador: ReturnType<typeof setTimeout>;
+  let pedido: AbortController | undefined;
+  let resultados: Lugar[] = [];
+  let activo = -1;
+
+  function pintarSugerencias() {
+    lista.innerHTML = '';
+    resultados.forEach((l, i) => {
+      const li = document.createElement('li');
+      li.role = 'option';
+      li.id = `sug-${i}`;
+      li.setAttribute('aria-selected', String(i === activo));
+      li.innerHTML = '<strong></strong> <span></span>';
+      li.querySelector('strong')!.textContent = l.nombre;
+      li.querySelector('span')!.textContent = l.detalle;
+      li.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        elegir(l);
+      });
+      lista.append(li);
+    });
+    lista.hidden = resultados.length === 0;
+  }
+
+  function elegir(l: Lugar) {
+    input.value = '';
+    resultados = [];
+    pintarSugerencias();
+    input.blur();
+    cargar(l);
+  }
+
+  input.addEventListener('input', () => {
+    clearTimeout(temporizador);
+    const texto = input.value.trim();
+    if (texto.length < 2) {
+      resultados = [];
+      return pintarSugerencias();
+    }
+    temporizador = setTimeout(async () => {
+      pedido?.abort();
+      pedido = new AbortController();
+      try {
+        resultados = await buscarLugares(texto, pedido.signal);
+        activo = resultados.length ? 0 : -1;
+        pintarSugerencias();
+        if (!resultados.length) avisar(`No encontré "${texto}".`, true);
+        else avisar('');
+      } catch (e) {
+        if ((e as Error).name !== 'AbortError') avisar((e as Error).message, true);
+      }
+    }, 300);
+  });
+
+  input.addEventListener('keydown', (e) => {
+    if (!resultados.length) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      activo = (activo + (e.key === 'ArrowDown' ? 1 : -1) + resultados.length) % resultados.length;
+      pintarSugerencias();
+    } else if (e.key === 'Escape') {
+      resultados = [];
+      pintarSugerencias();
+    }
+  });
+  input.addEventListener('blur', () => setTimeout(() => (lista.hidden = true), 100));
+  input.addEventListener('focus', () => (lista.hidden = resultados.length === 0));
+
+  $('buscador').addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (resultados[activo]) elegir(resultados[activo]);
+  });
+
+  $('ubicacion').addEventListener('click', () => {
+    if (!navigator.geolocation) return avisar('Tu navegador no permite obtener la ubicación.', true);
+    avisar('Obteniendo tu ubicación…');
+    navigator.geolocation.getCurrentPosition(
+      (pos) =>
+        cargar({ nombre: 'Tu ubicación', detalle: '', latitud: pos.coords.latitude, longitud: pos.coords.longitude }),
+      () => avisar('No se pudo obtener tu ubicación. Revisá los permisos del navegador.', true),
+      { timeout: 10000 },
+    );
+  });
+
+  // Al entrar: el último lugar consultado, o Buenos Aires.
+  let inicial = POR_DEFECTO;
+  try {
+    const guardado = localStorage.getItem('clima-lugar');
+    if (guardado) inicial = JSON.parse(guardado);
+  } catch {}
+  cargar(inicial);
+</script>
+
+<style>
+  .buscador { display: flex; gap: 12px; margin-bottom: 28px; }
+  .campo { position: relative; flex: 1; }
+  .campo input { width: 100%; padding: 12px 14px; font-size: 1rem; }
+  .sugerencias {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
+    z-index: 5;
+    list-style: none;
+    margin: 0;
+    padding: 6px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 16px 40px -16px rgb(0 0 0 / 0.3);
+  }
+  .sugerencias[hidden] { display: none; }
+  .sugerencias :global(li) { padding: 10px 12px; border-radius: 8px; cursor: pointer; }
+  .sugerencias :global(li span) { color: var(--muted); font-size: 0.9rem; }
+  .sugerencias :global(li:hover),
+  .sugerencias :global(li[aria-selected='true']) { background: var(--accent-soft); }
+  @media (max-width: 560px) {
+    .buscador { flex-direction: column; }
+  }
+
+  .contenido { display: flex; flex-direction: column; gap: 20px; }
+  .contenido[hidden] { display: none; }
+  .contenido h2 { font-size: 1.05rem; margin: 0 0 12px; }
+  .contenido > h2 { margin: 12px 0 -8px; }
+
+  .resumen { display: grid; grid-template-columns: 1.6fr repeat(4, 1fr); gap: 12px; }
+  .ahora { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .ahora p { margin: 0; }
+  .lugar { font-weight: 600; }
+  .temp { font-size: 3.6rem; font-weight: 800; line-height: 1.1; letter-spacing: -0.04em; }
+  .estado { color: var(--muted); }
+  .icono-grande { font-size: 4rem; line-height: 1; }
+  .dato { display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+  .dato span { color: var(--muted); font-size: 0.85rem; }
+  .dato strong { font-size: 1.4rem; white-space: nowrap; }
+  @media (max-width: 860px) {
+    .resumen { grid-template-columns: repeat(2, 1fr); }
+    .ahora { grid-column: 1 / -1; }
+  }
+
+  .semana { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 10px; }
+  .semana :global(li) { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 14px 6px; text-align: center; }
+  .semana :global(.dia) { font-weight: 600; text-transform: capitalize; }
+  .semana :global(.icono) { font-size: 1.8rem; }
+  .semana :global(.rango) { color: var(--muted); font-size: 0.9rem; }
+  .semana :global(.rango b) { color: var(--text); }
+  @media (max-width: 720px) {
+    .semana { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 88px; overflow-x: auto; padding-bottom: 4px; }
+  }
+
+  .leyenda { list-style: none; display: flex; gap: 16px; margin: -4px 0 8px; padding: 0; font-size: 0.85rem; color: var(--muted); }
+  .leyenda li { display: flex; align-items: center; gap: 6px; }
+  .leyenda i { width: 12px; height: 3px; border-radius: 2px; }
+
+  /* Gráficos (los crea graficos.ts) */
+  :global(.grafico) { position: relative; width: 100%; }
+  :global(.grafico svg) { display: block; overflow: visible; }
+  :global(.grafico .grilla) { stroke: var(--border); stroke-width: 1; }
+  :global(.grafico .eje-y) { fill: var(--muted); font-size: 11px; text-anchor: end; dominant-baseline: middle; }
+  :global(.grafico .eje-x) { fill: var(--muted); font-size: 11px; text-anchor: middle; }
+  :global(.grafico .linea) { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  :global(.grafico .etiqueta-final) { fill: var(--text); font-size: 12px; font-weight: 600; dominant-baseline: middle; }
+  :global(.grafico .cruz) { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+  :global(.grafico .punto) { stroke: var(--surface); stroke-width: 2; }
+  :global(.grafico .zona) { fill: var(--accent-soft); opacity: 0.55; }
+  :global(.grafico .hoy) { stroke: var(--accent); stroke-width: 1; stroke-dasharray: 4 3; }
+  :global(.grafico .zona-texto) { fill: var(--accent); font-size: 11px; font-weight: 600; text-anchor: end; }
+  :global(.grafico .barra) { transition: opacity 0.15s; }
+  :global(.grafico .barra.atenuada) { opacity: 0.35; }
+  :global(.grafico-tooltip) {
+    position: absolute;
+    top: -8px;
+    transform: translateY(-100%);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 8px 24px -8px rgb(0 0 0 / 0.25);
+    font-size: 0.8rem;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 2;
+  }
+  :global(.grafico-tooltip[hidden]) { display: none; }
+  :global(.grafico-tooltip span) { display: flex; align-items: center; gap: 6px; color: var(--muted); }
+  :global(.grafico-tooltip b) { color: var(--text); }
+  :global(.grafico-tooltip i) { width: 8px; height: 8px; border-radius: 50%; }
+
+  .tabla summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+  .tabla-scroll { overflow-x: auto; margin-top: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 600; }
+  tr:global(.hoy) td { font-weight: 700; }
+  .fuente { color: var(--muted); font-size: 0.85rem; margin: 0; }
+</style>

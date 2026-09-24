@@ -1,3 +1,5 @@
+/* Tokens de color. El modo oscuro sigue al sistema, salvo que el visitante
+   elija uno con el botón de tema (data-theme en <html>). */
 :root {
   --bg: #fafaf9;
   --surface: #ffffff;
@@ -6,13 +8,19 @@
   --border: #e7e5e4;
   --accent: #4f46e5;
   --accent-soft: #eef2ff;
+  --on-accent: #ffffff;
+  --ok: #15803d;
+  --error: #dc2626;
+  /* Series de gráficos (paleta validada para daltonismo) */
+  --serie-calida: #eb6834;
+  --serie-fria: #2a78d6;
   --radius: 14px;
   --max: 960px;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:where(:not([data-theme='light'])) {
     --bg: #0c0a09;
     --surface: #1c1917;
     --text: #f5f5f4;
@@ -20,8 +28,29 @@
     --border: #292524;
     --accent: #818cf8;
     --accent-soft: #1e1b4b;
+    --on-accent: #0c0a09;
+    --ok: #4ade80;
+    --error: #f87171;
+    --serie-calida: #d95926;
+    --serie-fria: #3987e5;
     color-scheme: dark;
   }
+}
+
+:root[data-theme='dark'] {
+  --bg: #0c0a09;
+  --surface: #1c1917;
+  --text: #f5f5f4;
+  --muted: #a8a29e;
+  --border: #292524;
+  --accent: #818cf8;
+  --accent-soft: #1e1b4b;
+  --on-accent: #0c0a09;
+  --ok: #4ade80;
+  --error: #f87171;
+  --serie-calida: #d95926;
+  --serie-fria: #3987e5;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -32,7 +61,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'Inter Variable', system-ui, -apple-system, sans-serif;
   line-height: 1.65;
   -webkit-font-smoothing: antialiased;
 }
@@ -77,21 +106,83 @@ h1, h2, h3 { line-height: 1.2; letter-spacing: -0.02em; }
 .btn {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
   padding: 10px 18px;
   border-radius: 10px;
+  font: inherit;
   font-weight: 600;
   text-decoration: none;
   border: 1px solid var(--border);
   color: var(--text);
   background: var(--surface);
+  cursor: pointer;
   transition: transform 0.15s, border-color 0.15s;
 }
 
 .btn:hover { transform: translateY(-2px); border-color: var(--accent); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* ---------- Herramientas (conversor, clima, paletas, etc.) ---------- */
+
+.herramienta { max-width: 820px; padding-top: 48px; padding-bottom: 72px; }
+.herramienta-ancha { max-width: var(--max); }
+
+.herramienta .cabecera h1 { font-size: clamp(2rem, 5vw, 2.8rem); margin: 0 0 12px; }
+.herramienta .cabecera p { color: var(--muted); margin: 0 0 32px; font-size: 1.05rem; }
+
+.herramienta .panel { display: flex; flex-direction: column; gap: 20px; padding: 0; }
+.herramienta .panel[hidden] { display: none; }
+
+.opciones { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; }
+.opciones > label { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; font-weight: 600; }
+.opciones > label[hidden] { display: none; }
+.opciones output { color: var(--accent); }
+.opciones .check { flex-direction: row; align-items: center; font-weight: 500; }
+
+.herramienta select,
+.herramienta input[type='number'],
+.herramienta input[type='text'],
+.herramienta input[type='search'],
+.herramienta input[type='url'],
+.herramienta textarea {
+  font: inherit;
+  font-weight: 400;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.herramienta input[type='number'] { width: 150px; }
+.herramienta input[type='range'] { accent-color: var(--accent); width: 160px; }
+.herramienta input[type='checkbox'] { accent-color: var(--accent); width: 16px; height: 16px; }
+.herramienta textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85rem; }
+
+.acciones { display: flex; flex-wrap: wrap; gap: 12px; }
+.acciones[hidden] { display: none; }
+
+.tarjeta {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+}
+
+.aviso { min-height: 1.5em; margin: 20px 0 0; color: var(--muted); font-weight: 500; }
+.aviso.error { color: var(--error); }

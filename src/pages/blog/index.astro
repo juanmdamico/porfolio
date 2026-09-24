@@ -1,0 +1,64 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+
+const posts = (await getCollection('blog', (p) => !p.data.borrador)).sort(
+  (a, b) => b.data.fecha.valueOf() - a.data.fecha.valueOf(),
+);
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const fecha = (d: Date) => d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
+---
+
+<Base titulo="Blog" descripcion="Notas sobre desarrollo web, cosas que aprendo y cómo construyo mis proyectos.">
+  <div class="container blog">
+    <header>
+      <h1>Blog</h1>
+      <p>Notas sobre desarrollo web, cosas que aprendo y cómo construyo mis proyectos.</p>
+      <a class="rss" href={`${base}/rss.xml`}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="19" r="2.5" /><path d="M3 10a11 11 0 0 1 11 11h-3a8 8 0 0 0-8-8zm0-6a17 17 0 0 1 17 17h-3A14 14 0 0 0 3 7z" /></svg>
+        Suscribite por RSS
+      </a>
+    </header>
+    <ul class="lista">
+      {
+        posts.map((p) => (
+          <li>
+            <a href={`${base}/blog/${p.id}/`}>
+              <time datetime={p.data.fecha.toISOString()}>{fecha(p.data.fecha)}</time>
+              <h2>{p.data.titulo}</h2>
+              <p>{p.data.resumen}</p>
+              <ul class="tags">
+                {p.data.etiquetas.map((e) => (
+                  <li>{e}</li>
+                ))}
+              </ul>
+            </a>
+          </li>
+        ))
+      }
+    </ul>
+  </div>
+</Base>
+
+<style>
+  .blog { max-width: 760px; padding-top: 56px; padding-bottom: 72px; }
+  h1 { font-size: clamp(2.2rem, 6vw, 3rem); margin: 0 0 8px; }
+  header p { color: var(--muted); margin: 0 0 12px; font-size: 1.05rem; }
+  .rss { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-decoration: none; font-size: 0.9rem; }
+  .lista { list-style: none; margin: 40px 0 0; padding: 0; display: grid; gap: 16px; }
+  .lista > li > a {
+    display: grid;
+    gap: 8px;
+    padding: 24px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    text-decoration: none;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .lista > li > a:hover { border-color: var(--accent); transform: translateY(-2px); }
+  time { font-size: 0.85rem; color: var(--muted); font-weight: 600; }
+  h2 { margin: 0; font-size: 1.35rem; }
+  .lista p { margin: 0; color: var(--muted); }
+</style>
