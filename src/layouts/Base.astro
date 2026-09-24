@@ -10,6 +10,7 @@ interface Props {
 const { titulo, descripcion = perfil.frase } = Astro.props;
 const tituloCompleto = titulo ? `${titulo} · ${perfil.nombre}` : `${perfil.nombre} · ${perfil.rol}`;
 const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const enConversor = Astro.url.pathname.startsWith(`${base}/conversor`);
 ---
 
 <!doctype html>
@@ -34,6 +35,13 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
           <a href={`${base}/#proyectos`}>Proyectos</a>
           <a href={`${base}/#sobre-mi`}>Sobre mí</a>
           <a href={`${base}/#contacto`}>Contacto</a>
+          <a href={`${base}/conversor/`} class="nav-destacado" aria-current={enConversor ? 'page' : undefined}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M17 3l4 4-4 4" /><path d="M21 7H9a4 4 0 0 0-4 4" />
+              <path d="M7 21l-4-4 4-4" /><path d="M3 17h12a4 4 0 0 0 4-4" />
+            </svg>
+            Conversor
+          </a>
         </nav>
       </div>
     </header>
@@ -68,17 +76,39 @@ const base = import.meta.env.BASE_URL.replace(/\/$/, '');
     text-decoration: none;
     white-space: nowrap;
   }
-  nav { display: flex; gap: 20px; }
+  nav { display: flex; align-items: center; gap: 20px; }
   nav a {
     color: var(--muted);
     text-decoration: none;
     font-size: 0.95rem;
     font-weight: 500;
+    white-space: nowrap;
   }
   nav a:hover { color: var(--text); }
+  nav .nav-destacado {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+    transition: background 0.15s, color 0.15s;
+  }
+  nav .nav-destacado:hover,
+  nav .nav-destacado[aria-current='page'] {
+    background: var(--accent);
+    color: #fff;
+  }
+  nav .nav-destacado svg { transition: transform 0.3s; }
+  nav .nav-destacado:hover svg { transform: rotate(180deg); }
   @media (max-width: 520px) {
     .logo { display: none; }
     .nav-inner { justify-content: center; }
+    nav { gap: 12px; }
+    nav a { font-size: 0.88rem; }
+    nav .nav-destacado { padding: 5px 10px; }
   }
   .footer {
     border-top: 1px solid var(--border);
