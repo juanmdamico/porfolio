@@ -1,0 +1,23 @@
+---
+import Base from './Base.astro';
+
+interface Props {
+  titulo: string;
+  descripcion: string;
+  /** Usa todo el ancho del sitio (para dashboards) */
+  ancha?: boolean;
+}
+
+const { titulo, descripcion, ancha = false } = Astro.props;
+---
+
+<Base titulo={titulo} descripcion={descripcion}>
+  <div class:list={['container', 'herramienta', { 'herramienta-ancha': ancha }]}>
+    <header class="cabecera">
+      <h1>{titulo}</h1>
+      <p><slot name="intro">{descripcion}</slot></p>
+    </header>
+    <slot />
+    <p class="aviso" id="aviso" role="status" aria-live="polite"></p>
+  </div>
+</Base>

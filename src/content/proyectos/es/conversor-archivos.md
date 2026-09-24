@@ -5,7 +5,8 @@ tecnologias: [TypeScript, Astro, Canvas API, jsPDF]
 fecha: 2026-09-24
 demo: https://juanmdamico.github.io/porfolio/conversor/
 codigo: https://github.com/juanmdamico/porfolio/tree/main/src/scripts/conversor
-destacado: true
+orden: 1
+imagen: conversor.webp
 ---
 
 ## El problema

@@ -1,0 +1,256 @@
+---
+import Herramienta from '../layouts/Herramienta.astro';
+---
+
+<Herramienta titulo="Snake" descripcion="El clásico juego de la viborita: comé, crecé y no choques. Se juega con el teclado o deslizando el dedo.">
+  <div class="juego">
+    <div class="marcador">
+      <span>Puntos <strong id="puntos">0</strong></span>
+      <span>Récord <strong id="record">0</strong></span>
+    </div>
+
+    <div class="tablero">
+      <canvas id="canvas" aria-label="Tablero de Snake" tabindex="0"></canvas>
+      <div class="capa" id="capa">
+        <p class="capa-titulo" id="capa-titulo">Snake</p>
+        <p class="capa-texto" id="capa-texto">Usá las flechas o W A S D. En el celular, deslizá el dedo.</p>
+        <button class="btn btn-primary" id="jugar" type="button">Jugar</button>
+      </div>
+    </div>
+
+    <div class="controles" aria-label="Controles táctiles">
+      <button type="button" data-dir="arriba" aria-label="Arriba">▲</button>
+      <button type="button" data-dir="izquierda" aria-label="Izquierda">◀</button>
+      <button type="button" data-dir="abajo" aria-label="Abajo">▼</button>
+      <button type="button" data-dir="derecha" aria-label="Derecha">▶</button>
+    </div>
+    <p class="ayuda">Espacio o P para pausar.</p>
+  </div>
+</Herramienta>
+
+<script>
+  import { $, colorCss } from '../scripts/comun';
+  import { Juego, type Direccion, type Estado } from '../scripts/snake/juego';
+
+  const juego = new Juego(20);
+  const canvas = $<HTMLCanvasElement>('canvas');
+  const ctx = canvas.getContext('2d')!;
+  let record = 0;
+  try {
+    record = Number(localStorage.getItem('snake-record')) || 0;
+  } catch {}
+  $('record').textContent = String(record);
+
+  // ---------- Tamaño nítido en pantallas de alta densidad ----------
+  let celda = 20;
+  function ajustarTamano() {
+    const lado = Math.min(canvas.parentElement!.clientWidth, 480);
+    const dpr = window.devicePixelRatio || 1;
+    canvas.style.width = canvas.style.height = `${lado}px`;
+    canvas.width = canvas.height = Math.round(lado * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    celda = lado / juego.tamano;
+    dibujar();
+  }
+  new ResizeObserver(ajustarTamano).observe(canvas.parentElement!);
+
+  // ---------- Dibujo ----------
+  function rectRedondeado(x: number, y: number, lado: number, radio: number) {
+    ctx.beginPath();
+    ctx.roundRect(x, y, lado, lado, radio);
+    ctx.fill();
+  }
+
+  function dibujar() {
+    const lado = celda * juego.tamano;
+    ctx.fillStyle = colorCss('--surface');
+    ctx.fillRect(0, 0, lado, lado);
+    // Cuadriculado sutil
+    ctx.fillStyle = colorCss('--bg');
+    for (let y = 0; y < juego.tamano; y++)
+      for (let x = (y % 2); x < juego.tamano; x += 2) ctx.fillRect(x * celda, y * celda, celda, celda);
+
+    const m = celda * 0.08;
+    ctx.fillStyle = colorCss('--serie-calida');
+    ctx.beginPath();
+    ctx.arc((juego.comida.x + 0.5) * celda, (juego.comida.y + 0.5) * celda, celda * 0.36, 0, Math.PI * 2);
+    ctx.fill();
+
+    const acento = colorCss('--accent');
+    juego.serpiente.forEach((p, i) => {
+      ctx.fillStyle = acento;
+      ctx.globalAlpha = i === 0 ? 1 : Math.max(0.45, 1 - i / (juego.serpiente.length * 1.4));
+      rectRedondeado(p.x * celda + m, p.y * celda + m, celda - m * 2, celda * 0.3);
+    });
+    ctx.globalAlpha = 1;
+
+    // Ojos en la cabeza, mirando hacia donde va
+    const c = juego.serpiente[0];
+    const d = { arriba: [0, -1], abajo: [0, 1], izquierda: [-1, 0], derecha: [1, 0] }[juego.direccion];
+    ctx.fillStyle = colorCss('--on-accent');
+    for (const lado of [-1, 1]) {
+      const ox = (c.x + 0.5 + d[0] * 0.18 + d[1] * lado * 0.2) * celda;
+      const oy = (c.y + 0.5 + d[1] * 0.18 + d[0] * lado * 0.2) * celda;
+      ctx.beginPath();
+      ctx.arc(ox, oy, celda * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  window.addEventListener('cambio-tema', dibujar);
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', dibujar);
+
+  // ---------- Bucle con paso fijo ----------
+  let ultimo = 0;
+  let acumulado = 0;
+  function bucle(t: number) {
+    if (juego.estado !== 'jugando') return;
+    acumulado += Math.min(t - ultimo, 250); // evita saltos si la pestaña estuvo en segundo plano
+    ultimo = t;
+    while (acumulado >= juego.intervalo && juego.estado === 'jugando') {
+      acumulado -= juego.intervalo;
+      if (juego.paso()) $('puntos').textContent = String(juego.puntos);
+    }
+    dibujar();
+    // paso() puede cambiar el estado; TypeScript no lo sabe y lo sigue considerando 'jugando'.
+    if ((juego.estado as Estado) === 'fin') return terminar();
+    requestAnimationFrame(bucle);
+  }
+
+  function mostrarCapa(titulo: string, texto: string, boton: string) {
+    $('capa-titulo').textContent = titulo;
+    $('capa-texto').textContent = texto;
+    $('jugar').textContent = boton;
+    $('capa').hidden = false;
+  }
+
+  function jugar() {
+    if (juego.estado === 'fin' || juego.estado === 'inicio') {
+      juego.reiniciar();
+      $('puntos').textContent = '0';
+    }
+    juego.estado = 'jugando';
+    $('capa').hidden = true;
+    canvas.focus();
+    acumulado = 0;
+    ultimo = performance.now();
+    requestAnimationFrame(bucle);
+  }
+
+  function pausar() {
+    if (juego.estado === 'jugando') {
+      juego.estado = 'pausa';
+      mostrarCapa('Pausa', `Llevás ${juego.puntos} puntos.`, 'Seguir');
+    } else if (juego.estado === 'pausa') jugar();
+  }
+
+  function terminar() {
+    const nuevoRecord = juego.puntos > record;
+    if (nuevoRecord) {
+      record = juego.puntos;
+      $('record').textContent = String(record);
+      try {
+        localStorage.setItem('snake-record', String(record));
+      } catch {}
+    }
+    mostrarCapa(nuevoRecord ? '¡Nuevo récord!' : 'Fin del juego', `Hiciste ${juego.puntos} puntos.`, 'Jugar de nuevo');
+  }
+
+  // ---------- Controles ----------
+  const TECLAS: Record<string, Direccion> = {
+    ArrowUp: 'arriba', ArrowDown: 'abajo', ArrowLeft: 'izquierda', ArrowRight: 'derecha',
+    w: 'arriba', s: 'abajo', a: 'izquierda', d: 'derecha',
+  };
+  document.addEventListener('keydown', (e) => {
+    if ((e.target as HTMLElement).matches('input, textarea, select')) return;
+    const dir = TECLAS[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+    if (dir) {
+      e.preventDefault();
+      if (juego.estado === 'inicio') jugar();
+      juego.girar(dir);
+    } else if (e.key === ' ' || e.key.toLowerCase() === 'p') {
+      e.preventDefault();
+      if (juego.estado === 'jugando' || juego.estado === 'pausa') pausar();
+      else jugar();
+    }
+  });
+
+  document.querySelectorAll<HTMLButtonElement>('[data-dir]').forEach((b) =>
+    b.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      if (juego.estado === 'inicio') jugar();
+      juego.girar(b.dataset.dir as Direccion);
+    }),
+  );
+
+  // Deslizar el dedo sobre el tablero
+  let inicio: { x: number; y: number } | null = null;
+  canvas.addEventListener('touchstart', (e) => (inicio = { x: e.touches[0].clientX, y: e.touches[0].clientY }), { passive: true });
+  canvas.addEventListener('touchmove', (e) => {
+    if (!inicio) return;
+    e.preventDefault();
+    const dx = e.touches[0].clientX - inicio.x;
+    const dy = e.touches[0].clientY - inicio.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 24) return;
+    juego.girar(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'derecha' : 'izquierda') : dy > 0 ? 'abajo' : 'arriba');
+    inicio = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, { passive: false });
+
+  $('jugar').addEventListener('click', jugar);
+  // Si se cambia de pestaña en medio del juego, se pausa.
+  document.addEventListener('visibilitychange', () => document.hidden && juego.estado === 'jugando' && pausar());
+</script>
+
+<style>
+  .juego { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .marcador { display: flex; justify-content: space-between; width: 100%; max-width: 480px; font-weight: 600; color: var(--muted); }
+  .marcador strong { color: var(--text); font-size: 1.3rem; margin-left: 6px; }
+  .tablero { position: relative; width: 100%; max-width: 480px; }
+  canvas { display: block; border-radius: var(--radius); border: 1px solid var(--border); touch-action: none; }
+  canvas:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .capa {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    text-align: center;
+    border-radius: var(--radius);
+    background: color-mix(in srgb, var(--surface) 80%, transparent);
+    backdrop-filter: blur(3px);
+  }
+  .capa[hidden] { display: none; }
+  .capa p { margin: 0; }
+  .capa-titulo { font-size: 2rem; font-weight: 800; }
+  .capa-texto { color: var(--muted); margin-bottom: 12px !important; }
+  .controles {
+    display: none;
+    grid-template-areas: '. arriba .' 'izquierda abajo derecha';
+    gap: 8px;
+  }
+  .controles button {
+    width: 64px;
+    height: 56px;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 1.2rem;
+    touch-action: manipulation;
+    user-select: none;
+  }
+  .controles button:active { background: var(--accent-soft); }
+  [data-dir='arriba'] { grid-area: arriba; }
+  [data-dir='abajo'] { grid-area: abajo; }
+  [data-dir='izquierda'] { grid-area: izquierda; }
+  [data-dir='derecha'] { grid-area: derecha; }
+  @media (pointer: coarse), (max-width: 600px) {
+    .controles { display: grid; }
+  }
+  .ayuda { margin: 0; color: var(--muted); font-size: 0.85rem; }
+  @media (pointer: coarse), (max-width: 600px) {
+    .ayuda { display: none; }
+  }
+</style>

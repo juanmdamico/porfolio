@@ -1,0 +1,321 @@
+---
+import Herramienta from '../layouts/Herramienta.astro';
+---
+
+<Herramienta
+  titulo="Contraseñas y códigos QR"
+  descripcion="Generá contraseñas seguras, medí la fuerza de las tuyas y creá códigos QR personalizados. Nada sale de tu navegador."
+>
+  <div class="pestanas" role="tablist">
+    <button role="tab" aria-selected="true" aria-controls="panel-clave" id="tab-clave">Contraseñas</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-qr" id="tab-qr">Código QR</button>
+  </div>
+
+  <!-- Contraseñas -->
+  <section class="panel" id="panel-clave" role="tabpanel" aria-labelledby="tab-clave">
+    <div class="tarjeta generada">
+      <output id="clave" class="clave" aria-live="polite"></output>
+      <div class="acciones">
+        <button class="btn btn-primary" id="copiar-clave" type="button">Copiar</button>
+        <button class="btn" id="regenerar" type="button" aria-label="Generar otra">↻ Otra</button>
+      </div>
+      <div class="medidor" id="medidor-gen">
+        <div class="segmentos"><i></i><i></i><i></i><i></i><i></i></div>
+        <span class="nivel"></span>
+      </div>
+    </div>
+
+    <div class="opciones">
+      <label>
+        Largo <output id="largo-valor">20</output>
+        <input type="range" id="largo" min="8" max="64" value="20" />
+      </label>
+      <label class="check"><input type="checkbox" data-conjunto="minusculas" checked /> a-z</label>
+      <label class="check"><input type="checkbox" data-conjunto="mayusculas" checked /> A-Z</label>
+      <label class="check"><input type="checkbox" data-conjunto="numeros" checked /> 0-9</label>
+      <label class="check"><input type="checkbox" data-conjunto="simbolos" checked /> !@#$</label>
+      <label class="check"><input type="checkbox" id="sin-ambiguos" /> Evitar confusos (l, 1, O, 0)</label>
+    </div>
+
+    <div class="tarjeta">
+      <h2>¿Qué tan segura es tu contraseña?</h2>
+      <p class="ayuda">Se analiza en tu navegador. No se guarda ni se envía.</p>
+      <div class="verificar">
+        <label for="probar" class="sr-only">Contraseña a analizar</label>
+        <input type="password" id="probar" placeholder="Escribí una contraseña" autocomplete="off" />
+        <button type="button" class="btn" id="ver" aria-pressed="false">Mostrar</button>
+      </div>
+      <div class="medidor" id="medidor-probar" hidden>
+        <div class="segmentos"><i></i><i></i><i></i><i></i><i></i></div>
+        <span class="nivel"></span>
+      </div>
+      <ul class="problemas" id="problemas"></ul>
+      <div class="filtrada">
+        <button type="button" class="btn" id="filtrada">¿Apareció en alguna filtración?</button>
+        <p class="ayuda">
+          Usa <a href="https://haveibeenpwned.com/Passwords" target="_blank" rel="noopener">Have I Been Pwned</a> con
+          k-anonimato: solo se envían los primeros 5 caracteres del hash SHA-1, nunca la contraseña.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- QR -->
+  <section class="panel" id="panel-qr" role="tabpanel" aria-labelledby="tab-qr" hidden>
+    <div class="qr-grid">
+      <div class="qr-form">
+        <div class="opciones">
+          <label>
+            Tipo
+            <select id="qr-tipo">
+              <option value="texto">Texto o enlace</option>
+              <option value="wifi">Red Wi-Fi</option>
+              <option value="email">Email</option>
+            </select>
+          </label>
+        </div>
+        <div data-tipo="texto" class="campos">
+          <label>Contenido <textarea id="qr-texto" rows="3">https://juanmdamico.github.io/porfolio/</textarea></label>
+        </div>
+        <div data-tipo="wifi" class="campos" hidden>
+          <label>Nombre de la red (SSID) <input type="text" id="qr-ssid" placeholder="MiCasa" /></label>
+          <label>Contraseña <input type="text" id="qr-wifi-clave" /></label>
+          <label>Seguridad
+            <select id="qr-wifi-seg"><option value="WPA">WPA/WPA2/WPA3</option><option value="WEP">WEP</option><option value="nopass">Sin contraseña</option></select>
+          </label>
+        </div>
+        <div data-tipo="email" class="campos" hidden>
+          <label>Para <input type="text" id="qr-email" placeholder="nombre@ejemplo.com" /></label>
+          <label>Asunto <input type="text" id="qr-asunto" /></label>
+        </div>
+        <div class="opciones">
+          <label>Color <input type="color" id="qr-color" value="#1c1917" /></label>
+          <label>Fondo <input type="color" id="qr-fondo" value="#ffffff" /></label>
+          <label>
+            Corrección de errores
+            <select id="qr-nivel">
+              <option value="L">Baja (7%)</option>
+              <option value="M" selected>Media (15%)</option>
+              <option value="Q">Alta (25%)</option>
+              <option value="H">Máxima (30%)</option>
+            </select>
+          </label>
+        </div>
+        <p class="aviso-contraste" id="qr-contraste" hidden>⚠️ Poco contraste entre el color y el fondo: algunos celulares no van a poder leerlo.</p>
+      </div>
+      <div class="qr-vista tarjeta">
+        <canvas id="qr-canvas" width="280" height="280" aria-label="Vista previa del código QR"></canvas>
+        <div class="acciones">
+          <button class="btn btn-primary" id="qr-png" type="button">Descargar PNG</button>
+          <button class="btn" id="qr-svg" type="button">Descargar SVG</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</Herramienta>
+
+<script>
+  import QRCode from 'qrcode';
+  import { $, avisar, copiar, descargar } from '../scripts/comun';
+  import {
+    generarContrasena, entropiaGenerada, entropiaEscrita, nivel, tiempoParaRomper, vecesFiltrada, type Conjunto,
+  } from '../scripts/seguridad/contrasenas';
+  import { contraste, type RGB } from '../scripts/paletas/colores';
+
+  // ---------- Pestañas ----------
+  const pestanas = document.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+  pestanas.forEach((tab) =>
+    tab.addEventListener('click', () => {
+      pestanas.forEach((t) => {
+        t.setAttribute('aria-selected', String(t === tab));
+        $(t.getAttribute('aria-controls')!).hidden = t !== tab;
+      });
+      avisar('');
+    }),
+  );
+
+  // ---------- Medidor ----------
+  function pintarMedidor(id: string, bits: number) {
+    const m = $(id);
+    const n = nivel(bits);
+    m.hidden = false;
+    m.dataset.nivel = String(n.valor);
+    m.querySelectorAll('i').forEach((seg, i) => seg.classList.toggle('lleno', i <= n.valor));
+    m.querySelector('.nivel')!.textContent = `${n.texto} · ${Math.round(bits)} bits · se adivina en ${tiempoParaRomper(bits)}`;
+  }
+
+  // ---------- Generador ----------
+  const largo = $<HTMLInputElement>('largo');
+  const opciones = () => ({
+    largo: Number(largo.value),
+    conjuntos: [...document.querySelectorAll<HTMLInputElement>('[data-conjunto]:checked')].map((c) => c.dataset.conjunto as Conjunto),
+    sinAmbiguos: $<HTMLInputElement>('sin-ambiguos').checked,
+  });
+
+  function generar() {
+    $('largo-valor').textContent = largo.value;
+    try {
+      const o = opciones();
+      $('clave').textContent = generarContrasena(o);
+      pintarMedidor('medidor-gen', entropiaGenerada(o));
+      avisar('');
+    } catch (e) {
+      avisar((e as Error).message, true);
+    }
+  }
+  largo.addEventListener('input', generar);
+  document.querySelectorAll('#panel-clave .opciones input[type=checkbox]').forEach((c) => c.addEventListener('change', generar));
+  $('regenerar').addEventListener('click', generar);
+  $('copiar-clave').addEventListener('click', () => copiar($('clave').textContent ?? '', 'Contraseña copiada.'));
+  generar();
+
+  // ---------- Verificador ----------
+  const probar = $<HTMLInputElement>('probar');
+  probar.addEventListener('input', () => {
+    const { bits, problemas } = entropiaEscrita(probar.value);
+    if (!probar.value) {
+      $('medidor-probar').hidden = true;
+      $('problemas').innerHTML = '';
+      return;
+    }
+    pintarMedidor('medidor-probar', bits);
+    $('problemas').innerHTML = '';
+    problemas.forEach((p) => {
+      const li = document.createElement('li');
+      li.textContent = p;
+      $('problemas').append(li);
+    });
+  });
+  $('ver').addEventListener('click', () => {
+    const visible = probar.type === 'text';
+    probar.type = visible ? 'password' : 'text';
+    $('ver').textContent = visible ? 'Mostrar' : 'Ocultar';
+    $('ver').setAttribute('aria-pressed', String(!visible));
+  });
+  $('filtrada').addEventListener('click', async () => {
+    if (!probar.value) return avisar('Escribí una contraseña para verificar.', true);
+    avisar('Consultando…');
+    try {
+      const veces = await vecesFiltrada(probar.value);
+      avisar(
+        veces
+          ? `⚠️ Esta contraseña apareció ${veces.toLocaleString('es-AR')} veces en filtraciones. No la uses.`
+          : '✓ No aparece en filtraciones conocidas.',
+        veces > 0,
+      );
+    } catch (e) {
+      avisar((e as Error).message, true);
+    }
+  });
+
+  // ---------- QR ----------
+  const canvas = $<HTMLCanvasElement>('qr-canvas');
+  const tipo = $<HTMLSelectElement>('qr-tipo');
+  const valor = (id: string) => $<HTMLInputElement>(id).value.trim();
+  // En el formato WIFI hay que escapar \ ; , : y "
+  const escaparWifi = (s: string) => s.replace(/([\;,:"])/g, '\\$1');
+
+  function contenidoQr(): string {
+    switch (tipo.value) {
+      case 'wifi': {
+        const seg = valor('qr-wifi-seg');
+        return `WIFI:T:${seg};S:${escaparWifi(valor('qr-ssid'))};${seg === 'nopass' ? '' : `P:${escaparWifi(valor('qr-wifi-clave'))};`};`;
+      }
+      case 'email':
+        return `mailto:${valor('qr-email')}${valor('qr-asunto') ? `?subject=${encodeURIComponent(valor('qr-asunto'))}` : ''}`;
+      default:
+        return $<HTMLTextAreaElement>('qr-texto').value;
+    }
+  }
+
+  const aRgb = (hex: string): RGB => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as RGB;
+  const opcionesQr = (ancho: number) => ({
+    width: ancho,
+    margin: 2,
+    errorCorrectionLevel: valor('qr-nivel') as 'L' | 'M' | 'Q' | 'H',
+    color: { dark: valor('qr-color'), light: valor('qr-fondo') },
+  });
+
+  async function dibujarQr() {
+    const texto = contenidoQr();
+    $('qr-contraste').hidden = contraste(aRgb(valor('qr-color')), aRgb(valor('qr-fondo'))) >= 3;
+    if (!texto || texto === 'mailto:' || (tipo.value === 'wifi' && !valor('qr-ssid'))) {
+      canvas.getContext('2d')!.clearRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+    try {
+      await QRCode.toCanvas(canvas, texto, opcionesQr(280));
+      avisar('');
+    } catch {
+      avisar('El contenido es demasiado largo para un código QR.', true);
+    }
+  }
+
+  tipo.addEventListener('change', () => {
+    document.querySelectorAll<HTMLElement>('[data-tipo]').forEach((d) => (d.hidden = d.dataset.tipo !== tipo.value));
+    dibujarQr();
+  });
+  document.querySelectorAll('#panel-qr input, #panel-qr textarea, #panel-qr select').forEach((c) => c.addEventListener('input', dibujarQr));
+
+  $('qr-png').addEventListener('click', async () => {
+    const url = await QRCode.toDataURL(contenidoQr(), opcionesQr(1024));
+    descargar(await (await fetch(url)).blob(), 'codigo-qr.png');
+  });
+  $('qr-svg').addEventListener('click', async () => {
+    const svg = await QRCode.toString(contenidoQr(), { ...opcionesQr(1024), type: 'svg' });
+    descargar(new Blob([svg], { type: 'image/svg+xml' }), 'codigo-qr.svg');
+  });
+  dibujarQr();
+</script>
+
+<style>
+  .pestanas { display: flex; gap: 4px; padding: 4px; margin-bottom: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; }
+  .pestanas button { flex: 1; padding: 10px 14px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font: inherit; font-weight: 600; cursor: pointer; }
+  .pestanas button[aria-selected='true'] { background: var(--accent); color: var(--on-accent); }
+
+  .generada { display: flex; flex-direction: column; gap: 16px; }
+  .clave {
+    display: block;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: clamp(1.05rem, 3vw, 1.45rem);
+    word-break: break-all;
+    padding: 16px;
+    border-radius: 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+  }
+
+  .medidor { display: flex; flex-direction: column; gap: 8px; }
+  .medidor[hidden] { display: none; }
+  .segmentos { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+  .segmentos i { height: 8px; border-radius: 4px; background: var(--border); transition: background 0.2s; }
+  .medidor[data-nivel='0'] .lleno { background: var(--error); }
+  .medidor[data-nivel='1'] .lleno { background: #ea580c; }
+  .medidor[data-nivel='2'] .lleno { background: #ca8a04; }
+  .medidor[data-nivel='3'] .lleno,
+  .medidor[data-nivel='4'] .lleno { background: var(--ok); }
+  .nivel { font-size: 0.9rem; color: var(--muted); font-weight: 500; }
+
+  .tarjeta h2 { font-size: 1.1rem; margin: 0 0 4px; }
+  .ayuda { color: var(--muted); font-size: 0.85rem; margin: 0 0 14px; }
+  .verificar { display: flex; gap: 8px; margin-bottom: 14px; }
+  .verificar input { flex: 1; min-width: 0; font-family: ui-monospace, Menlo, Consolas, monospace; padding: 10px 12px; }
+  .problemas { margin: 12px 0 0; padding-left: 20px; color: var(--muted); font-size: 0.9rem; }
+  .filtrada { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+  .filtrada .ayuda { margin: 10px 0 0; }
+
+  .qr-grid { display: grid; grid-template-columns: 1fr 320px; gap: 24px; align-items: start; }
+  @media (max-width: 720px) {
+    .qr-grid { grid-template-columns: 1fr; }
+  }
+  .qr-form { display: flex; flex-direction: column; gap: 16px; }
+  .campos { display: flex; flex-direction: column; gap: 12px; }
+  .campos[hidden] { display: none; }
+  .campos label { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; font-weight: 600; }
+  input[type='color'] { width: 64px; height: 38px; padding: 2px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; }
+  .aviso-contraste { margin: 0; color: var(--error); font-size: 0.9rem; }
+  .aviso-contraste[hidden] { display: none; }
+  .qr-vista { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+  .qr-vista canvas { width: 100%; max-width: 280px; height: auto; aspect-ratio: 1; border-radius: 8px; }
+  .qr-vista .acciones { justify-content: center; }
+</style>

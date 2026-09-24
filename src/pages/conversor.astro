@@ -1,129 +1,116 @@
 ---
-import Base from '../layouts/Base.astro';
+import Herramienta from '../layouts/Herramienta.astro';
 import ZonaArchivos from '../components/ZonaArchivos.astro';
 ---
 
-<Base titulo="Conversor de archivos" descripcion="Convertí imágenes, armá PDFs y pasá de CSV a JSON sin subir tus archivos a ningún servidor.">
-  <div class="container conversor">
-    <header class="cabecera">
-      <h1>Conversor de archivos</h1>
-      <p>
-        Convertí imágenes, armá PDFs y transformá datos. <strong>Todo pasa en tu navegador</strong>: tus
-        archivos nunca se suben a ningún servidor.
-      </p>
-    </header>
+<Herramienta titulo="Conversor de archivos" descripcion="Convertí imágenes, armá PDFs y pasá de CSV a JSON sin subir tus archivos a ningún servidor.">
+  <Fragment slot="intro">
+    Convertí imágenes, armá PDFs y transformá datos. <strong>Todo pasa en tu navegador</strong>: tus archivos nunca
+    se suben a ningún servidor.
+  </Fragment>
 
-    <div class="pestanas" role="tablist">
-      <button role="tab" aria-selected="true" aria-controls="panel-imagenes" id="tab-imagenes">Imágenes</button>
-      <button role="tab" aria-selected="false" aria-controls="panel-pdf" id="tab-pdf">Imágenes a PDF</button>
-      <button role="tab" aria-selected="false" aria-controls="panel-datos" id="tab-datos">CSV ⇄ JSON</button>
-    </div>
-
-    <!-- Imágenes -->
-    <section class="panel" id="panel-imagenes" role="tabpanel" aria-labelledby="tab-imagenes">
-      <div class="opciones">
-        <label>
-          Convertir a
-          <select id="img-formato">
-            <option value="image/webp">WebP</option>
-            <option value="image/jpeg">JPG</option>
-            <option value="image/png">PNG</option>
-          </select>
-        </label>
-        <label id="img-calidad-campo">
-          Calidad <output id="img-calidad-valor">85%</output>
-          <input type="range" id="img-calidad" min="10" max="100" value="85" />
-        </label>
-        <label>
-          Ancho máximo (px)
-          <input type="number" id="img-ancho" min="1" placeholder="Sin cambios" />
-        </label>
-      </div>
-      <ZonaArchivos id="img-zona" accept="image/*" multiple texto="Arrastrá imágenes o hacé clic para elegir" ayuda="PNG, JPG, WebP, GIF, BMP, SVG…" />
-      <div class="acciones" id="img-acciones" hidden>
-        <button class="btn btn-primary" id="img-zip">Descargar todo (.zip)</button>
-        <button class="btn" id="img-limpiar">Limpiar</button>
-      </div>
-      <ul class="resultados" id="img-resultados"></ul>
-    </section>
-
-    <!-- Imágenes a PDF -->
-    <section class="panel" id="panel-pdf" role="tabpanel" aria-labelledby="tab-pdf" hidden>
-      <div class="opciones">
-        <label>
-          Tamaño de página
-          <select id="pdf-tamano">
-            <option value="a4">A4</option>
-            <option value="imagen">Igual a cada imagen</option>
-          </select>
-        </label>
-      </div>
-      <ZonaArchivos id="pdf-zona" accept="image/*" multiple texto="Arrastrá las imágenes que van en el PDF" ayuda="Cada imagen será una página. Podés reordenarlas." />
-      <ol class="lista-pdf" id="pdf-lista"></ol>
-      <div class="acciones" id="pdf-acciones" hidden>
-        <button class="btn btn-primary" id="pdf-generar">Generar PDF</button>
-        <button class="btn" id="pdf-limpiar">Limpiar</button>
-      </div>
-    </section>
-
-    <!-- CSV ⇄ JSON -->
-    <section class="panel" id="panel-datos" role="tabpanel" aria-labelledby="tab-datos" hidden>
-      <div class="opciones">
-        <label>
-          Dirección
-          <select id="datos-direccion">
-            <option value="csv-json">CSV → JSON</option>
-            <option value="json-csv">JSON → CSV</option>
-          </select>
-        </label>
-        <label id="datos-separador-campo" hidden>
-          Separador
-          <select id="datos-separador">
-            <option value=",">Coma (,)</option>
-            <option value=";">Punto y coma (;)</option>
-            <option value="&#9;">Tabulación</option>
-          </select>
-        </label>
-        <label class="check" id="datos-tipos-campo">
-          <input type="checkbox" id="datos-tipos" checked />
-          Detectar números y booleanos
-        </label>
-      </div>
-      <ZonaArchivos id="datos-zona" accept=".csv,.tsv,.json,.txt,text/csv,application/json" texto="Arrastrá un archivo o pegá el contenido abajo" ayuda="CSV, TSV o JSON" />
-      <div class="editores">
-        <label>
-          <span id="datos-etiqueta-entrada">CSV</span>
-          <textarea id="datos-entrada" spellcheck="false" placeholder="nombre,edad&#10;Ana,31&#10;Luis,27"></textarea>
-        </label>
-        <label>
-          <span id="datos-etiqueta-salida">JSON</span>
-          <textarea id="datos-salida" spellcheck="false" readonly></textarea>
-        </label>
-      </div>
-      <div class="acciones">
-        <button class="btn btn-primary" id="datos-convertir">Convertir</button>
-        <button class="btn" id="datos-copiar" disabled>Copiar</button>
-        <button class="btn" id="datos-descargar" disabled>Descargar</button>
-      </div>
-    </section>
-
-    <p class="aviso" id="aviso" role="status" aria-live="polite"></p>
+  <div class="pestanas" role="tablist">
+    <button role="tab" aria-selected="true" aria-controls="panel-imagenes" id="tab-imagenes">Imágenes</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-pdf" id="tab-pdf">Imágenes a PDF</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-datos" id="tab-datos">CSV ⇄ JSON</button>
   </div>
-</Base>
+
+  <!-- Imágenes -->
+  <section class="panel" id="panel-imagenes" role="tabpanel" aria-labelledby="tab-imagenes">
+    <div class="opciones">
+      <label>
+        Convertir a
+        <select id="img-formato">
+          <option value="image/webp">WebP</option>
+          <option value="image/jpeg">JPG</option>
+          <option value="image/png">PNG</option>
+        </select>
+      </label>
+      <label id="img-calidad-campo">
+        Calidad <output id="img-calidad-valor">85%</output>
+        <input type="range" id="img-calidad" min="10" max="100" value="85" />
+      </label>
+      <label>
+        Ancho máximo (px)
+        <input type="number" id="img-ancho" min="1" placeholder="Sin cambios" />
+      </label>
+    </div>
+    <ZonaArchivos id="img-zona" accept="image/*" multiple texto="Arrastrá imágenes o hacé clic para elegir" ayuda="PNG, JPG, WebP, GIF, BMP, SVG…" />
+    <div class="acciones" id="img-acciones" hidden>
+      <button class="btn btn-primary" id="img-zip">Descargar todo (.zip)</button>
+      <button class="btn" id="img-limpiar">Limpiar</button>
+    </div>
+    <ul class="resultados" id="img-resultados"></ul>
+  </section>
+
+  <!-- Imágenes a PDF -->
+  <section class="panel" id="panel-pdf" role="tabpanel" aria-labelledby="tab-pdf" hidden>
+    <div class="opciones">
+      <label>
+        Tamaño de página
+        <select id="pdf-tamano">
+          <option value="a4">A4</option>
+          <option value="imagen">Igual a cada imagen</option>
+        </select>
+      </label>
+    </div>
+    <ZonaArchivos id="pdf-zona" accept="image/*" multiple texto="Arrastrá las imágenes que van en el PDF" ayuda="Cada imagen será una página. Podés reordenarlas." />
+    <ol class="lista-pdf" id="pdf-lista"></ol>
+    <div class="acciones" id="pdf-acciones" hidden>
+      <button class="btn btn-primary" id="pdf-generar">Generar PDF</button>
+      <button class="btn" id="pdf-limpiar">Limpiar</button>
+    </div>
+  </section>
+
+  <!-- CSV ⇄ JSON -->
+  <section class="panel" id="panel-datos" role="tabpanel" aria-labelledby="tab-datos" hidden>
+    <div class="opciones">
+      <label>
+        Dirección
+        <select id="datos-direccion">
+          <option value="csv-json">CSV → JSON</option>
+          <option value="json-csv">JSON → CSV</option>
+        </select>
+      </label>
+      <label id="datos-separador-campo" hidden>
+        Separador
+        <select id="datos-separador">
+          <option value=",">Coma (,)</option>
+          <option value=";">Punto y coma (;)</option>
+          <option value="&#9;">Tabulación</option>
+        </select>
+      </label>
+      <label class="check" id="datos-tipos-campo">
+        <input type="checkbox" id="datos-tipos" checked />
+        Detectar números y booleanos
+      </label>
+    </div>
+    <ZonaArchivos id="datos-zona" accept=".csv,.tsv,.json,.txt,text/csv,application/json" texto="Arrastrá un archivo o pegá el contenido abajo" ayuda="CSV, TSV o JSON" />
+    <div class="editores">
+      <label>
+        <span id="datos-etiqueta-entrada">CSV</span>
+        <textarea id="datos-entrada" spellcheck="false" placeholder="nombre,edad&#10;Ana,31&#10;Luis,27"></textarea>
+      </label>
+      <label>
+        <span id="datos-etiqueta-salida">JSON</span>
+        <textarea id="datos-salida" spellcheck="false" readonly></textarea>
+      </label>
+    </div>
+    <div class="acciones">
+      <button class="btn btn-primary" id="datos-convertir">Convertir</button>
+      <button class="btn" id="datos-copiar" disabled>Copiar</button>
+      <button class="btn" id="datos-descargar" disabled>Descargar</button>
+    </div>
+  </section>
+
+</Herramienta>
 
 <script>
-  import { iniciarZona, descargar, formatearTamano, nombreBase } from '../scripts/conversor/util';
+  import { $, avisar, copiar as copiarTexto, descargar } from '../scripts/comun';
+  import { iniciarZona, formatearTamano, nombreBase } from '../scripts/conversor/util';
   import { convertirImagen, type FormatoImagen } from '../scripts/conversor/imagenes';
   import { imagenesAPdf, type TamanoPagina } from '../scripts/conversor/pdf';
   import { csvAJson, jsonACsv } from '../scripts/conversor/datos';
-
-  const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
-
-  const aviso = $('aviso');
-  function avisar(mensaje: string, error = false) {
-    aviso.textContent = mensaje;
-    aviso.classList.toggle('error', error);
-  }
 
   // ---------- Pestañas ----------
   const pestanas = document.querySelectorAll<HTMLButtonElement>('[role="tab"]');
@@ -338,10 +325,7 @@ import ZonaArchivos from '../components/ZonaArchivos.astro';
   }
   $('datos-convertir').addEventListener('click', convertirDatos);
 
-  copiar.addEventListener('click', async () => {
-    await navigator.clipboard.writeText(salida.value);
-    avisar('Copiado al portapapeles.');
-  });
+  copiar.addEventListener('click', () => copiarTexto(salida.value));
 
   descargarDatos.addEventListener('click', () => {
     const tipo = aJson() ? 'application/json' : 'text/csv';
@@ -353,10 +337,6 @@ import ZonaArchivos from '../components/ZonaArchivos.astro';
 </script>
 
 <style>
-  .conversor { max-width: 820px; padding-top: 48px; padding-bottom: 72px; }
-  .cabecera h1 { font-size: clamp(2rem, 5vw, 2.8rem); margin: 0 0 12px; }
-  .cabecera p { color: var(--muted); margin: 0 0 32px; font-size: 1.05rem; }
-
   .pestanas {
     display: flex;
     gap: 4px;
@@ -381,36 +361,7 @@ import ZonaArchivos from '../components/ZonaArchivos.astro';
   @media (max-width: 480px) {
     .pestanas button { padding: 8px 6px; font-size: 0.85rem; }
   }
-  .pestanas button[aria-selected='true'] { background: var(--accent); color: #fff; }
-
-  .panel { display: flex; flex-direction: column; gap: 20px; padding: 0; }
-  .panel[hidden] { display: none; }
-
-  .opciones { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; }
-  .opciones > label { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; font-weight: 600; }
-  .opciones > label[hidden] { display: none; }
-  .opciones output { color: var(--accent); }
-  .opciones .check { flex-direction: row; align-items: center; font-weight: 500; }
-
-  select,
-  input[type='number'],
-  textarea {
-    font: inherit;
-    font-weight: 400;
-    color: var(--text);
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 8px 10px;
-  }
-  input[type='number'] { width: 150px; }
-  input[type='range'] { accent-color: var(--accent); width: 160px; }
-  input[type='checkbox'] { accent-color: var(--accent); width: 16px; height: 16px; }
-
-  .acciones { display: flex; flex-wrap: wrap; gap: 12px; }
-  .acciones[hidden] { display: none; }
-  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-  button.btn { font: inherit; font-weight: 600; cursor: pointer; }
+  .pestanas button[aria-selected='true'] { background: var(--accent); color: var(--on-accent); }
 
   .resultados,
   .lista-pdf { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -438,8 +389,8 @@ import ZonaArchivos from '../components/ZonaArchivos.astro';
   .lista-pdf :global(.nombre) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .resultados :global(.info span) { font-size: 0.85rem; color: var(--muted); }
   .resultados :global(em) { font-style: normal; font-weight: 700; margin-left: 4px; }
-  .resultados :global(.ahorro) { color: #16a34a; }
-  .resultados :global(.aumento) { color: #dc2626; }
+  .resultados :global(.ahorro) { color: var(--ok); }
+  .resultados :global(.aumento) { color: var(--error); }
   .lista-pdf :global(.nombre) { flex: 1; min-width: 0; }
   .lista-pdf :global(.orden) { display: flex; gap: 4px; }
   .lista-pdf :global(.btn-icono) {
@@ -459,8 +410,6 @@ import ZonaArchivos from '../components/ZonaArchivos.astro';
   .editores textarea {
     min-height: 260px;
     resize: vertical;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-    font-size: 0.85rem;
   }
   @media (max-width: 640px) {
     .editores { grid-template-columns: 1fr; }
@@ -468,6 +417,4 @@ import ZonaArchivos from '../components/ZonaArchivos.astro';
     .resultados :global(.btn) { width: 100%; justify-content: center; }
   }
 
-  .aviso { min-height: 1.5em; margin: 20px 0 0; color: var(--muted); font-weight: 500; }
-  .aviso:global(.error) { color: #dc2626; }
 </style>
