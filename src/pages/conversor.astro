@@ -1,0 +1,473 @@
+---
+import Base from '../layouts/Base.astro';
+import ZonaArchivos from '../components/ZonaArchivos.astro';
+---
+
+<Base titulo="Conversor de archivos" descripcion="Convertí imágenes, armá PDFs y pasá de CSV a JSON sin subir tus archivos a ningún servidor.">
+  <div class="container conversor">
+    <header class="cabecera">
+      <h1>Conversor de archivos</h1>
+      <p>
+        Convertí imágenes, armá PDFs y transformá datos. <strong>Todo pasa en tu navegador</strong>: tus
+        archivos nunca se suben a ningún servidor.
+      </p>
+    </header>
+
+    <div class="pestanas" role="tablist">
+      <button role="tab" aria-selected="true" aria-controls="panel-imagenes" id="tab-imagenes">Imágenes</button>
+      <button role="tab" aria-selected="false" aria-controls="panel-pdf" id="tab-pdf">Imágenes a PDF</button>
+      <button role="tab" aria-selected="false" aria-controls="panel-datos" id="tab-datos">CSV ⇄ JSON</button>
+    </div>
+
+    <!-- Imágenes -->
+    <section class="panel" id="panel-imagenes" role="tabpanel" aria-labelledby="tab-imagenes">
+      <div class="opciones">
+        <label>
+          Convertir a
+          <select id="img-formato">
+            <option value="image/webp">WebP</option>
+            <option value="image/jpeg">JPG</option>
+            <option value="image/png">PNG</option>
+          </select>
+        </label>
+        <label id="img-calidad-campo">
+          Calidad <output id="img-calidad-valor">85%</output>
+          <input type="range" id="img-calidad" min="10" max="100" value="85" />
+        </label>
+        <label>
+          Ancho máximo (px)
+          <input type="number" id="img-ancho" min="1" placeholder="Sin cambios" />
+        </label>
+      </div>
+      <ZonaArchivos id="img-zona" accept="image/*" multiple texto="Arrastrá imágenes o hacé clic para elegir" ayuda="PNG, JPG, WebP, GIF, BMP, SVG…" />
+      <div class="acciones" id="img-acciones" hidden>
+        <button class="btn btn-primary" id="img-zip">Descargar todo (.zip)</button>
+        <button class="btn" id="img-limpiar">Limpiar</button>
+      </div>
+      <ul class="resultados" id="img-resultados"></ul>
+    </section>
+
+    <!-- Imágenes a PDF -->
+    <section class="panel" id="panel-pdf" role="tabpanel" aria-labelledby="tab-pdf" hidden>
+      <div class="opciones">
+        <label>
+          Tamaño de página
+          <select id="pdf-tamano">
+            <option value="a4">A4</option>
+            <option value="imagen">Igual a cada imagen</option>
+          </select>
+        </label>
+      </div>
+      <ZonaArchivos id="pdf-zona" accept="image/*" multiple texto="Arrastrá las imágenes que van en el PDF" ayuda="Cada imagen será una página. Podés reordenarlas." />
+      <ol class="lista-pdf" id="pdf-lista"></ol>
+      <div class="acciones" id="pdf-acciones" hidden>
+        <button class="btn btn-primary" id="pdf-generar">Generar PDF</button>
+        <button class="btn" id="pdf-limpiar">Limpiar</button>
+      </div>
+    </section>
+
+    <!-- CSV ⇄ JSON -->
+    <section class="panel" id="panel-datos" role="tabpanel" aria-labelledby="tab-datos" hidden>
+      <div class="opciones">
+        <label>
+          Dirección
+          <select id="datos-direccion">
+            <option value="csv-json">CSV → JSON</option>
+            <option value="json-csv">JSON → CSV</option>
+          </select>
+        </label>
+        <label id="datos-separador-campo" hidden>
+          Separador
+          <select id="datos-separador">
+            <option value=",">Coma (,)</option>
+            <option value=";">Punto y coma (;)</option>
+            <option value="&#9;">Tabulación</option>
+          </select>
+        </label>
+        <label class="check" id="datos-tipos-campo">
+          <input type="checkbox" id="datos-tipos" checked />
+          Detectar números y booleanos
+        </label>
+      </div>
+      <ZonaArchivos id="datos-zona" accept=".csv,.tsv,.json,.txt,text/csv,application/json" texto="Arrastrá un archivo o pegá el contenido abajo" ayuda="CSV, TSV o JSON" />
+      <div class="editores">
+        <label>
+          <span id="datos-etiqueta-entrada">CSV</span>
+          <textarea id="datos-entrada" spellcheck="false" placeholder="nombre,edad&#10;Ana,31&#10;Luis,27"></textarea>
+        </label>
+        <label>
+          <span id="datos-etiqueta-salida">JSON</span>
+          <textarea id="datos-salida" spellcheck="false" readonly></textarea>
+        </label>
+      </div>
+      <div class="acciones">
+        <button class="btn btn-primary" id="datos-convertir">Convertir</button>
+        <button class="btn" id="datos-copiar" disabled>Copiar</button>
+        <button class="btn" id="datos-descargar" disabled>Descargar</button>
+      </div>
+    </section>
+
+    <p class="aviso" id="aviso" role="status" aria-live="polite"></p>
+  </div>
+</Base>
+
+<script>
+  import { iniciarZona, descargar, formatearTamano, nombreBase } from '../scripts/conversor/util';
+  import { convertirImagen, type FormatoImagen } from '../scripts/conversor/imagenes';
+  import { imagenesAPdf, type TamanoPagina } from '../scripts/conversor/pdf';
+  import { csvAJson, jsonACsv } from '../scripts/conversor/datos';
+
+  const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+
+  const aviso = $('aviso');
+  function avisar(mensaje: string, error = false) {
+    aviso.textContent = mensaje;
+    aviso.classList.toggle('error', error);
+  }
+
+  // ---------- Pestañas ----------
+  const pestanas = document.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+  pestanas.forEach((tab) =>
+    tab.addEventListener('click', () => {
+      pestanas.forEach((t) => {
+        const activa = t === tab;
+        t.setAttribute('aria-selected', String(activa));
+        $(t.getAttribute('aria-controls')!).hidden = !activa;
+      });
+      avisar('');
+    }),
+  );
+
+  // ---------- Imágenes ----------
+  const formato = $<HTMLSelectElement>('img-formato');
+  const calidad = $<HTMLInputElement>('img-calidad');
+  const ancho = $<HTMLInputElement>('img-ancho');
+  const resultados = $('img-resultados');
+  let convertidas: { blob: Blob; nombre: string; url: string }[] = [];
+
+  const actualizarCalidad = () => {
+    $('img-calidad-valor').textContent = `${calidad.value}%`;
+    $('img-calidad-campo').hidden = formato.value === 'image/png';
+  };
+  calidad.addEventListener('input', actualizarCalidad);
+  formato.addEventListener('change', actualizarCalidad);
+
+  iniciarZona($('img-zona'), async (archivos) => {
+    const imagenes = archivos.filter((a) => a.type.startsWith('image/'));
+    if (!imagenes.length) return avisar('Elegí archivos de imagen.', true);
+    avisar(`Convirtiendo ${imagenes.length} imagen(es)…`);
+    let errores = 0;
+
+    for (const archivo of imagenes) {
+      try {
+        const r = await convertirImagen(archivo, {
+          formato: formato.value as FormatoImagen,
+          calidad: Number(calidad.value) / 100,
+          anchoMaximo: Number(ancho.value) || undefined,
+        });
+        const url = URL.createObjectURL(r.blob);
+        convertidas.push({ blob: r.blob, nombre: r.nombre, url });
+
+        const diferencia = Math.round((1 - r.blob.size / archivo.size) * 100);
+        const li = document.createElement('li');
+        li.innerHTML = `
+          <img alt="" />
+          <div class="info">
+            <strong></strong>
+            <span>${r.ancho}×${r.alto} · ${formatearTamano(archivo.size)} → ${formatearTamano(r.blob.size)}
+              <em class="${diferencia >= 0 ? 'ahorro' : 'aumento'}">${diferencia >= 0 ? '−' : '+'}${Math.abs(diferencia)}%</em>
+            </span>
+          </div>
+          <a class="btn" download>Descargar</a>`;
+        (li.querySelector('img') as HTMLImageElement).src = url;
+        li.querySelector('strong')!.textContent = r.nombre;
+        const enlace = li.querySelector('a')!;
+        enlace.href = url;
+        enlace.download = r.nombre;
+        resultados.append(li);
+      } catch (e) {
+        errores++;
+        avisar(`${archivo.name}: ${(e as Error).message}`, true);
+      }
+    }
+
+    $('img-acciones').hidden = convertidas.length === 0;
+    if (!errores) avisar(`Listo: ${imagenes.length} imagen(es) convertida(s).`);
+  });
+
+  $('img-zip').addEventListener('click', async () => {
+    const { zipSync } = await import('fflate');
+    const usados = new Map<string, number>();
+    const entradas: Record<string, Uint8Array> = {};
+    for (const { blob, nombre } of convertidas) {
+      // Evita pisar archivos con el mismo nombre.
+      const n = usados.get(nombre) ?? 0;
+      usados.set(nombre, n + 1);
+      const punto = nombre.lastIndexOf('.');
+      const final = n ? `${nombre.slice(0, punto)} (${n})${nombre.slice(punto)}` : nombre;
+      entradas[final] = new Uint8Array(await blob.arrayBuffer());
+    }
+    // Las imágenes ya están comprimidas: level 0 es mucho más rápido.
+    descargar(new Blob([zipSync(entradas, { level: 0 })], { type: 'application/zip' }), 'imagenes-convertidas.zip');
+  });
+
+  $('img-limpiar').addEventListener('click', () => {
+    convertidas.forEach((c) => URL.revokeObjectURL(c.url));
+    convertidas = [];
+    resultados.innerHTML = '';
+    $('img-acciones').hidden = true;
+    avisar('');
+  });
+
+  // ---------- Imágenes a PDF ----------
+  const listaPdf = $('pdf-lista');
+  let paginas: { archivo: File; url: string }[] = [];
+
+  function dibujarListaPdf() {
+    listaPdf.innerHTML = '';
+    paginas.forEach(({ archivo, url }, i) => {
+      const li = document.createElement('li');
+      li.innerHTML = `
+        <img alt="" />
+        <span class="nombre"></span>
+        <div class="orden">
+          <button class="btn-icono" data-accion="subir" aria-label="Subir" ${i === 0 ? 'disabled' : ''}>↑</button>
+          <button class="btn-icono" data-accion="bajar" aria-label="Bajar" ${i === paginas.length - 1 ? 'disabled' : ''}>↓</button>
+          <button class="btn-icono" data-accion="quitar" aria-label="Quitar">✕</button>
+        </div>`;
+      (li.querySelector('img') as HTMLImageElement).src = url;
+      li.querySelector('.nombre')!.textContent = `${i + 1}. ${archivo.name}`;
+      li.querySelectorAll<HTMLButtonElement>('button').forEach((b) =>
+        b.addEventListener('click', () => moverPagina(i, b.dataset.accion!)),
+      );
+      listaPdf.append(li);
+    });
+    $('pdf-acciones').hidden = paginas.length === 0;
+  }
+
+  function moverPagina(i: number, accion: string) {
+    if (accion === 'quitar') {
+      URL.revokeObjectURL(paginas[i].url);
+      paginas.splice(i, 1);
+    } else {
+      const j = accion === 'subir' ? i - 1 : i + 1;
+      [paginas[i], paginas[j]] = [paginas[j], paginas[i]];
+    }
+    dibujarListaPdf();
+  }
+
+  iniciarZona($('pdf-zona'), (archivos) => {
+    const imagenes = archivos.filter((a) => a.type.startsWith('image/'));
+    if (!imagenes.length) return avisar('Elegí archivos de imagen.', true);
+    paginas.push(...imagenes.map((archivo) => ({ archivo, url: URL.createObjectURL(archivo) })));
+    dibujarListaPdf();
+    avisar('');
+  });
+
+  $('pdf-generar').addEventListener('click', async () => {
+    const boton = $<HTMLButtonElement>('pdf-generar');
+    boton.disabled = true;
+    avisar('Generando PDF…');
+    try {
+      const pdf = await imagenesAPdf(
+        paginas.map((p) => p.archivo),
+        $<HTMLSelectElement>('pdf-tamano').value as TamanoPagina,
+      );
+      const nombre = paginas.length === 1 ? `${nombreBase(paginas[0].archivo.name)}.pdf` : 'imagenes.pdf';
+      descargar(pdf, nombre);
+      avisar(`Listo: PDF de ${paginas.length} página(s), ${formatearTamano(pdf.size)}.`);
+    } catch (e) {
+      avisar((e as Error).message, true);
+    } finally {
+      boton.disabled = false;
+    }
+  });
+
+  $('pdf-limpiar').addEventListener('click', () => {
+    paginas.forEach((p) => URL.revokeObjectURL(p.url));
+    paginas = [];
+    dibujarListaPdf();
+    avisar('');
+  });
+
+  // ---------- CSV ⇄ JSON ----------
+  const direccion = $<HTMLSelectElement>('datos-direccion');
+  const entrada = $<HTMLTextAreaElement>('datos-entrada');
+  const salida = $<HTMLTextAreaElement>('datos-salida');
+  const copiar = $<HTMLButtonElement>('datos-copiar');
+  const descargarDatos = $<HTMLButtonElement>('datos-descargar');
+  let nombreDatos = 'datos';
+
+  const aJson = () => direccion.value === 'csv-json';
+
+  function actualizarDireccion() {
+    $('datos-etiqueta-entrada').textContent = aJson() ? 'CSV' : 'JSON';
+    $('datos-etiqueta-salida').textContent = aJson() ? 'JSON' : 'CSV';
+    $('datos-separador-campo').hidden = aJson();
+    $('datos-tipos-campo').hidden = !aJson();
+    entrada.placeholder = aJson()
+      ? 'nombre,edad\nAna,31\nLuis,27'
+      : '[\n  { "nombre": "Ana", "edad": 31 },\n  { "nombre": "Luis", "edad": 27 }\n]';
+    salida.value = '';
+    copiar.disabled = descargarDatos.disabled = true;
+  }
+  direccion.addEventListener('change', actualizarDireccion);
+
+  iniciarZona($('datos-zona'), async ([archivo]) => {
+    nombreDatos = nombreBase(archivo.name);
+    const esJson = archivo.name.toLowerCase().endsWith('.json') || archivo.type === 'application/json';
+    direccion.value = esJson ? 'json-csv' : 'csv-json';
+    actualizarDireccion();
+    entrada.value = await archivo.text();
+    convertirDatos();
+  });
+
+  function convertirDatos() {
+    if (!entrada.value.trim()) return avisar('Pegá o arrastrá contenido para convertir.', true);
+    try {
+      salida.value = aJson()
+        ? csvAJson(entrada.value, $<HTMLInputElement>('datos-tipos').checked)
+        : jsonACsv(entrada.value, $<HTMLSelectElement>('datos-separador').value);
+      copiar.disabled = descargarDatos.disabled = false;
+      avisar('Listo.');
+    } catch (e) {
+      salida.value = '';
+      copiar.disabled = descargarDatos.disabled = true;
+      avisar((e as Error).message, true);
+    }
+  }
+  $('datos-convertir').addEventListener('click', convertirDatos);
+
+  copiar.addEventListener('click', async () => {
+    await navigator.clipboard.writeText(salida.value);
+    avisar('Copiado al portapapeles.');
+  });
+
+  descargarDatos.addEventListener('click', () => {
+    const tipo = aJson() ? 'application/json' : 'text/csv';
+    const extension = aJson() ? 'json' : 'csv';
+    // El BOM hace que Excel abra bien los acentos del CSV.
+    const contenido = aJson() ? salida.value : `﻿${salida.value}`;
+    descargar(new Blob([contenido], { type: `${tipo};charset=utf-8` }), `${nombreDatos}.${extension}`);
+  });
+</script>
+
+<style>
+  .conversor { max-width: 820px; padding-top: 48px; padding-bottom: 72px; }
+  .cabecera h1 { font-size: clamp(2rem, 5vw, 2.8rem); margin: 0 0 12px; }
+  .cabecera p { color: var(--muted); margin: 0 0 32px; font-size: 1.05rem; }
+
+  .pestanas {
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    margin-bottom: 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .pestanas button {
+    flex: 1;
+    padding: 10px 14px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--muted);
+    font: inherit;
+    font-weight: 600;
+    line-height: 1.3;
+    cursor: pointer;
+  }
+  @media (max-width: 480px) {
+    .pestanas button { padding: 8px 6px; font-size: 0.85rem; }
+  }
+  .pestanas button[aria-selected='true'] { background: var(--accent); color: #fff; }
+
+  .panel { display: flex; flex-direction: column; gap: 20px; padding: 0; }
+  .panel[hidden] { display: none; }
+
+  .opciones { display: flex; flex-wrap: wrap; gap: 16px; align-items: end; }
+  .opciones > label { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; font-weight: 600; }
+  .opciones > label[hidden] { display: none; }
+  .opciones output { color: var(--accent); }
+  .opciones .check { flex-direction: row; align-items: center; font-weight: 500; }
+
+  select,
+  input[type='number'],
+  textarea {
+    font: inherit;
+    font-weight: 400;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 10px;
+  }
+  input[type='number'] { width: 150px; }
+  input[type='range'] { accent-color: var(--accent); width: 160px; }
+  input[type='checkbox'] { accent-color: var(--accent); width: 16px; height: 16px; }
+
+  .acciones { display: flex; flex-wrap: wrap; gap: 12px; }
+  .acciones[hidden] { display: none; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  button.btn { font: inherit; font-weight: 600; cursor: pointer; }
+
+  .resultados,
+  .lista-pdf { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .resultados :global(li),
+  .lista-pdf :global(li) {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+  }
+  .resultados :global(img),
+  .lista-pdf :global(img) {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    flex-shrink: 0;
+  }
+  .resultados :global(.info) { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .resultados :global(.info strong),
+  .lista-pdf :global(.nombre) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .resultados :global(.info span) { font-size: 0.85rem; color: var(--muted); }
+  .resultados :global(em) { font-style: normal; font-weight: 700; margin-left: 4px; }
+  .resultados :global(.ahorro) { color: #16a34a; }
+  .resultados :global(.aumento) { color: #dc2626; }
+  .lista-pdf :global(.nombre) { flex: 1; min-width: 0; }
+  .lista-pdf :global(.orden) { display: flex; gap: 4px; }
+  .lista-pdf :global(.btn-icono) {
+    width: 34px;
+    height: 34px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg);
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+  }
+  .lista-pdf :global(.btn-icono:disabled) { opacity: 0.35; cursor: default; }
+
+  .editores { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .editores label { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; font-weight: 600; }
+  .editores textarea {
+    min-height: 260px;
+    resize: vertical;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+  }
+  @media (max-width: 640px) {
+    .editores { grid-template-columns: 1fr; }
+    .resultados :global(li) { flex-wrap: wrap; }
+    .resultados :global(.btn) { width: 100%; justify-content: center; }
+  }
+
+  .aviso { min-height: 1.5em; margin: 20px 0 0; color: var(--muted); font-weight: 500; }
+  .aviso:global(.error) { color: #dc2626; }
+</style>
