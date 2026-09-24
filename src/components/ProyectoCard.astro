@@ -1,0 +1,45 @@
+---
+import type { CollectionEntry } from 'astro:content';
+
+interface Props {
+  proyecto: CollectionEntry<'proyectos'>;
+}
+
+const { proyecto } = Astro.props;
+const { titulo, resumen, tecnologias, fecha } = proyecto.data;
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<a class="card" href={`${base}/proyectos/${proyecto.id}/`}>
+  <span class="fecha">{fecha.getFullYear()}</span>
+  <h3>{titulo}</h3>
+  <p>{resumen}</p>
+  <ul class="tags">
+    {tecnologias.map((t) => <li>{t}</li>)}
+  </ul>
+  <span class="ver">Ver proyecto →</span>
+</a>
+
+<style>
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 24px;
+    border-radius: var(--radius);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    text-decoration: none;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+  }
+  .card:hover {
+    transform: translateY(-4px);
+    border-color: var(--accent);
+    box-shadow: 0 12px 32px -12px color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+  .fecha { font-size: 0.8rem; color: var(--muted); font-weight: 600; }
+  h3 { margin: 0; font-size: 1.25rem; }
+  p { margin: 0; color: var(--muted); flex: 1; }
+  .ver { color: var(--accent); font-weight: 600; font-size: 0.9rem; }
+</style>

@@ -1,0 +1,96 @@
+---
+import { getCollection } from 'astro:content';
+import Base from '../layouts/Base.astro';
+import ProyectoCard from '../components/ProyectoCard.astro';
+import { perfil } from '../data/perfil';
+
+const proyectos = (await getCollection('proyectos')).sort(
+  (a, b) =>
+    Number(b.data.destacado) - Number(a.data.destacado) ||
+    b.data.fecha.valueOf() - a.data.fecha.valueOf(),
+);
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+---
+
+<Base>
+  <section class="hero">
+    <div class="container">
+      <p class="saludo">Hola, soy {perfil.nombre} 👋</p>
+      <h1>{perfil.rol}.<br /><span>{perfil.frase}</span></h1>
+      <div class="acciones">
+        <a class="btn btn-primary" href="#proyectos">Ver proyectos</a>
+        <a class="btn" href="#contacto">Contactame</a>
+        {perfil.tieneCV && <a class="btn" href={`${base}/cv.pdf`} download>Descargar CV</a>}
+      </div>
+    </div>
+  </section>
+
+  <section id="proyectos">
+    <div class="container">
+      <h2 class="section-title">Proyectos</h2>
+      <div class="grid">
+        {proyectos.map((p) => <ProyectoCard proyecto={p} />)}
+      </div>
+    </div>
+  </section>
+
+  <section id="sobre-mi">
+    <div class="container sobre">
+      <div>
+        <h2 class="section-title">Sobre mí</h2>
+        {perfil.sobreMi.map((parrafo) => <p>{parrafo}</p>)}
+      </div>
+      <div>
+        <h3>Habilidades</h3>
+        <ul class="tags">
+          {perfil.habilidades.map((h) => <li>{h}</li>)}
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="contacto">
+    <div class="container contacto">
+      <h2 class="section-title">¿Trabajamos juntos?</h2>
+      <p>Escribime y te respondo a la brevedad.</p>
+      <div class="acciones">
+        <a class="btn btn-primary" href={`mailto:${perfil.email}`}>{perfil.email}</a>
+        <a class="btn" href={perfil.links.github} target="_blank" rel="noopener">GitHub</a>
+        <a class="btn" href={perfil.links.linkedin} target="_blank" rel="noopener">LinkedIn</a>
+      </div>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .hero { padding: 120px 0 80px; }
+  .saludo { color: var(--accent); font-weight: 600; margin: 0 0 12px; }
+  h1 {
+    font-size: clamp(2.2rem, 6vw, 3.6rem);
+    font-weight: 800;
+    margin: 0 0 32px;
+  }
+  h1 span { color: var(--muted); font-weight: 600; }
+  .acciones { display: flex; flex-wrap: wrap; gap: 12px; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+  }
+
+  .sobre {
+    display: grid;
+    grid-template-columns: 3fr 2fr;
+    gap: 48px;
+  }
+  .sobre p { color: var(--muted); }
+  .sobre h3 { margin: 0 0 16px; }
+  @media (max-width: 720px) {
+    .sobre { grid-template-columns: 1fr; gap: 24px; }
+  }
+
+  .contacto { text-align: center; }
+  .contacto p { color: var(--muted); margin: -16px 0 28px; }
+  .contacto .acciones { justify-content: center; }
+</style>
