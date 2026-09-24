@@ -1,0 +1,52 @@
+---
+interface Props {
+  id: string;
+  accept: string;
+  multiple?: boolean;
+  texto: string;
+  ayuda: string;
+}
+
+const { id, accept, multiple = false, texto, ayuda } = Astro.props;
+---
+
+<label class="zona" id={id}>
+  <input type="file" accept={accept} multiple={multiple} />
+  <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+    <path d="M12 16V4m0 0-4 4m4-4 4 4M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" stroke-linecap="round" stroke-linejoin="round" />
+  </svg>
+  <strong>{texto}</strong>
+  <span>{ayuda}</span>
+</label>
+
+<style>
+  .zona {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 36px 20px;
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--muted);
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .zona:hover,
+  .zona:global(.activa) {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+  }
+  .zona svg { color: var(--accent); }
+  .zona strong { color: var(--text); }
+  .zona span { font-size: 0.85rem; }
+  input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+  .zona:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
