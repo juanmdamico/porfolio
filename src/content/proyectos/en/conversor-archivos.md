@@ -22,7 +22,7 @@ A converter that runs **100% in the browser**. Files never leave the user's comp
 It includes four tools:
 
 - **Images:** converts between PNG, JPG and WebP, with quality control and resizing. It processes several files at once, shows how much each one shrank and lets you download everything as a `.zip`.
-- **Word ⇄ PDF:** converts `.docx` documents to PDF and PDF to editable Word, keeping headings, bold, italics, lists, tables and images (when going to PDF).
+- **Word ⇄ PDF:** converts `.docx` documents to PDF and PDF to editable Word. From PDF to Word it recovers headings, tables with their colors, lists, alignment, sizes, colors, separator lines and page breaks.
 - **Images to PDF:** merges several images into a PDF, with page reordering and A4 or image-sized pages.
 - **CSV ⇄ JSON:** converts both ways, auto-detects the delimiter (comma, semicolon or tab), respects quoted fields and recognizes numbers and booleans.
 
@@ -31,13 +31,16 @@ It includes four tools:
 ### Word ⇄ PDF without a server
 
 - **Word → PDF**: `mammoth` reads the `.docx` and turns it into semantic HTML (headings, lists, tables), and `pdfmake` builds a PDF with **real text**, selectable and searchable, not a picture of the page. GIF, BMP or WebP images are converted to PNG with a canvas, since pdfmake only accepts PNG and JPG.
-- **PDF → Word** is the hard direction: a PDF has no paragraphs or lists, it only knows where to draw each piece of text. With `pdf.js` (Firefox's PDF reader) I get every fragment with its position, size and font, and a custom algorithm rebuilds the structure:
+- **PDF → Word** is the hard direction: a PDF has no paragraphs, tables or lists, it only knows where to draw each piece of text. With `pdf.js` (Firefox's PDF reader) I get every fragment with its position, size and font, and a custom algorithm rebuilds the structure:
   - groups fragments into lines and sorts them left to right;
-  - detects **headings** by comparing font size with the body text;
-  - joins the lines of a paragraph and splits paragraphs by line spacing and because the last line is usually shorter;
+  - detects **tables** by looking for whitespace "channels" that repeat across consecutive lines, and infers whether each column is centered or aligned;
+  - detects **headings** by font size, and subheadings as short bold lines;
+  - detects **centered** and **justified** text by comparing where each line starts and ends against the margins;
+  - joins the lines of a paragraph and splits them by line spacing and because the last line is usually shorter;
   - recognizes **lists** by bullets or numbers, and also by indentation when the bullets are drawn shapes;
-  - rejoins hyphenated words and detects bold and italics from the font name.
-  Then the `docx` library generates a Word file with real heading and list styles. The algorithm is covered by automated tests.
+  - detects **intentional page breaks** when a page ends well before the margin.
+- **Colors**: PDF text doesn't carry its color, so I render each page to a canvas and read the pixels of each fragment to find the text and background colors (for example, a table header). In that same image I look for thin horizontal lines to recover separators.
+- The `docx` library generates the Word file with real styles: headings, lists, shaded tables, the equivalent font (Helvetica → Arial) and the original PDF's margins and page size. The algorithm is covered by automated tests.
 - If the PDF is a scan (an image with no text), it detects it and says so instead of returning an empty Word file.
 
 ### The rest
