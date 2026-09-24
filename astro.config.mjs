@@ -13,15 +13,25 @@ export default defineConfig({
   },
   vite: {
     build: {
+      // pdfmake (con sus fuentes) pesa ~1.8 MB, pero solo se descarga al convertir un Word a PDF.
+      chunkSizeWarningLimit: 2000,
       rollupOptions: {
         output: {
-          // Cada librería y los helpers de Vite van en su propio archivo. Sin esto, Rollup
-          // puede meter un helper compartido dentro del script de una página, y otra página
-          // termina cargando (y ejecutando) ese script ajeno.
-          manualChunks(id) {
-            if (id.includes('vite/preload-helper') || id.includes('commonjsHelpers')) return 'vite-helpers';
-            const paquete = id.split('node_modules/')[1]?.split('/')[0];
-            if (paquete && !id.includes('/astro/')) return `lib-${paquete}`;
+          // Cada librería va en su propio archivo, y el helper con el que Vite carga los
+          // módulos diferidos también. Sin esto, el empaquetador mete ese helper dentro de
+          // alguna librería (p. ej. jsPDF) y cualquier página que lo necesite la descarga entera.
+          codeSplitting: {
+            groups: [
+              { name: 'vite-helpers', test: /vite\/preload-helper/, priority: 20 },
+              {
+                name: (id) => {
+                  const paquete = id.split('node_modules/')[1]?.split('/')[0];
+                  return paquete && !id.includes('/astro/') ? `lib-${paquete}` : null;
+                },
+                test: /node_modules/,
+                priority: 10,
+              },
+            ],
           },
         },
       },

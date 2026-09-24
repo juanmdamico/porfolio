@@ -3,15 +3,16 @@ import Herramienta from '../layouts/Herramienta.astro';
 import ZonaArchivos from '../components/ZonaArchivos.astro';
 ---
 
-<Herramienta titulo="Conversor de archivos" descripcion="Convertí imágenes, armá PDFs y pasá de CSV a JSON sin subir tus archivos a ningún servidor.">
+<Herramienta titulo="Conversor de archivos" descripcion="Convertí imágenes, pasá de Word a PDF y de PDF a Word, armá PDFs y transformá CSV a JSON sin subir tus archivos a ningún servidor.">
   <Fragment slot="intro">
-    Convertí imágenes, armá PDFs y transformá datos. <strong>Todo pasa en tu navegador</strong>: tus archivos nunca
-    se suben a ningún servidor.
+    Convertí imágenes, pasá de Word a PDF y viceversa, armá PDFs y transformá datos. <strong>Todo pasa en tu
+    navegador</strong>: tus archivos nunca se suben a ningún servidor.
   </Fragment>
 
   <div class="pestanas" role="tablist">
     <button role="tab" aria-selected="true" aria-controls="panel-imagenes" id="tab-imagenes">Imágenes</button>
     <button role="tab" aria-selected="false" aria-controls="panel-pdf" id="tab-pdf">Imágenes a PDF</button>
+    <button role="tab" aria-selected="false" aria-controls="panel-docs" id="tab-docs">Word ⇄ PDF</button>
     <button role="tab" aria-selected="false" aria-controls="panel-datos" id="tab-datos">CSV ⇄ JSON</button>
   </div>
 
@@ -60,6 +61,27 @@ import ZonaArchivos from '../components/ZonaArchivos.astro';
       <button class="btn btn-primary" id="pdf-generar">Generar PDF</button>
       <button class="btn" id="pdf-limpiar">Limpiar</button>
     </div>
+  </section>
+
+  <!-- Word ⇄ PDF -->
+  <section class="panel" id="panel-docs" role="tabpanel" aria-labelledby="tab-docs" hidden>
+    <ZonaArchivos
+      id="docs-zona"
+      accept=".docx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      multiple
+      texto="Arrastrá documentos de Word (.docx) o PDF"
+      ayuda="Los Word se convierten a PDF y los PDF a Word"
+    />
+    <details class="nota">
+      <summary>¿Qué se conserva en la conversión?</summary>
+      <ul>
+        <li><strong>Word → PDF:</strong> texto, títulos, negritas, cursivas, listas, tablas e imágenes. No se copian encabezados, pies de página ni las fuentes exactas.</li>
+        <li><strong>PDF → Word:</strong> texto, títulos, listas, negritas y cursivas, en un documento editable. Las tablas quedan como texto, y no se copian imágenes ni el diseño exacto.</li>
+        <li>Los PDF escaneados (fotos de papel) no tienen texto, así que no se pueden pasar a Word.</li>
+        <li>El formato viejo <code>.doc</code> no es compatible: abrilo en Word y guardalo como <code>.docx</code>.</li>
+      </ul>
+    </details>
+    <ul class="resultados" id="docs-resultados"></ul>
   </section>
 
   <!-- CSV ⇄ JSON -->
@@ -111,6 +133,7 @@ import ZonaArchivos from '../components/ZonaArchivos.astro';
   import { convertirImagen, type FormatoImagen } from '../scripts/conversor/imagenes';
   import { imagenesAPdf, type TamanoPagina } from '../scripts/conversor/pdf';
   import { csvAJson, jsonACsv } from '../scripts/conversor/datos';
+  import { tipoDocumento, wordAPdf, pdfAWord } from '../scripts/conversor/documentos';
 
   // ---------- Pestañas ----------
   const pestanas = document.querySelectorAll<HTMLButtonElement>('[role="tab"]');
@@ -277,6 +300,59 @@ import ZonaArchivos from '../components/ZonaArchivos.astro';
     avisar('');
   });
 
+  // ---------- Word ⇄ PDF ----------
+  const docsResultados = $('docs-resultados');
+
+  function filaDocumento(nombreOriginal: string, destino: 'PDF' | 'Word') {
+    const li = document.createElement('li');
+    li.className = 'doc';
+    li.innerHTML = `
+      <span class="doc-icono" aria-hidden="true"></span>
+      <div class="info"><strong></strong><span class="estado">Convirtiendo a ${destino}…</span></div>`;
+    li.querySelector('.doc-icono')!.textContent = destino === 'PDF' ? 'PDF' : 'W';
+    li.querySelector('.doc-icono')!.classList.add(destino === 'PDF' ? 'es-pdf' : 'es-word');
+    li.querySelector('strong')!.textContent = nombreOriginal;
+    docsResultados.prepend(li);
+    return li;
+  }
+
+  iniciarZona($('docs-zona'), async (archivos) => {
+    avisar('');
+    for (const archivo of archivos) {
+      const tipo = tipoDocumento(archivo);
+      if (tipo === 'doc') {
+        avisar(`${archivo.name}: el formato .doc no es compatible. Guardalo como .docx desde Word.`, true);
+        continue;
+      }
+      if (!tipo) {
+        avisar(`${archivo.name}: elegí un archivo .docx o .pdf.`, true);
+        continue;
+      }
+      const li = filaDocumento(archivo.name, tipo === 'docx' ? 'PDF' : 'Word');
+      const estado = li.querySelector('.estado')!;
+      try {
+        const r = tipo === 'docx' ? await wordAPdf(archivo) : await pdfAWord(archivo);
+        li.querySelector('strong')!.textContent = r.nombre;
+        estado.textContent = `${formatearTamano(archivo.size)} → ${formatearTamano(r.blob.size)}`;
+        r.avisos.forEach((a) => {
+          const aviso = document.createElement('span');
+          aviso.className = 'aviso-doc';
+          aviso.textContent = `⚠️ ${a}`;
+          li.querySelector('.info')!.append(aviso);
+        });
+        const enlace = document.createElement('a');
+        enlace.className = 'btn';
+        enlace.textContent = 'Descargar';
+        enlace.href = URL.createObjectURL(r.blob);
+        enlace.download = r.nombre;
+        li.append(enlace);
+      } catch (e) {
+        li.classList.add('fallo');
+        estado.textContent = (e as Error).message;
+      }
+    }
+  });
+
   // ---------- CSV ⇄ JSON ----------
   const direccion = $<HTMLSelectElement>('datos-direccion');
   const entrada = $<HTMLTextAreaElement>('datos-entrada');
@@ -404,6 +480,26 @@ import ZonaArchivos from '../components/ZonaArchivos.astro';
     font: inherit;
   }
   .lista-pdf :global(.btn-icono:disabled) { opacity: 0.35; cursor: default; }
+
+  .nota { font-size: 0.9rem; color: var(--muted); }
+  .nota summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+  .nota ul { margin: 10px 0 0; padding-left: 20px; display: grid; gap: 6px; }
+  .nota code { font-size: 0.9em; }
+  .resultados :global(.doc-icono) {
+    display: grid;
+    place-items: center;
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    color: #fff;
+    font-weight: 800;
+    font-size: 0.85rem;
+  }
+  .resultados :global(.es-pdf) { background: #dc2626; }
+  .resultados :global(.es-word) { background: #2563eb; font-size: 1.3rem; }
+  .resultados :global(.aviso-doc) { font-size: 0.8rem; color: var(--muted); }
+  .resultados :global(.fallo .estado) { color: var(--error); }
 
   .editores { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .editores label { display: flex; flex-direction: column; gap: 6px; font-size: 0.9rem; font-weight: 600; }
